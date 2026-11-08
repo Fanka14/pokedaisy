@@ -864,7 +864,7 @@ private val NATIVE_PORT_BPGF0 by lazy {
         gameCode = "BPGF",
         trainerCard = null,
         // The battle menus' cursors: FireRed's (its battle EWRAM is unmoved here, gBattleMons too), checked on a Pixel 8 Pro
-        // (2026-11-08): the D-pad walks the action cursor 0 -> 1 -> 3 and BATTLE BAND's frame follows it.
+        // (2026-11-08): the D-pad walks the action cursor 0 -> 2 -> 3 -> 1 and BATTLE BAND's frame follows it.
         actionCursor = 0x02023FF8L,
         moveCursor = 0x02023FFCL,
         bagPockets = 0x0203988CL,
