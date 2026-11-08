@@ -55,9 +55,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       # Live: releases and manual runs only. Previews: pull requests from this repo (forks get no secrets).
       # A push to main stops here, built and tested.
+      # (Thomas's fork has no Firebase project: only the upstream repo deploys.)
       - if: >-
+          github.repository == 'lidor30/pokedaisy' && (
           github.event_name == 'release' || github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+          (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
         uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a # v0.11.0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
