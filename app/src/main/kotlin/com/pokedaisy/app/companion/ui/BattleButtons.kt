@@ -186,7 +186,7 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
     BattleList(1f, true, 8.dp, onClose, PARTY_LIST_W, n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f) { u2 ->
         BattlePartyList(
             snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
-            u2 * PARTY_LIST_W, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose,
+            u2 * PARTY_LIST_W, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose, keyCursor = BandParty.cursor.intValue,
         )
     }
 }

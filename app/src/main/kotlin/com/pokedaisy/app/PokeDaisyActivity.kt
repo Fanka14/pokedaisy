@@ -3595,7 +3595,12 @@ class PokeDaisyActivity : Activity() {
             val buttons = buttonsWanted && battleRead && !dsWindowUp
             // BATTLE BAND: Gen 3 GBA games only (a Game Boy game's menus and frame are another shape).
             val band = battleBandOn.value && !romIsNds && engine?.gba == true
-            androidx.compose.runtime.SideEffect { if (!band || !buttons) com.pokedaisy.app.companion.ui.GameBandPixels.wanted = false }
+            androidx.compose.runtime.SideEffect {
+                if (!band || !buttons) {
+                    com.pokedaisy.app.companion.ui.GameBandPixels.wanted = false
+                    com.pokedaisy.app.companion.ui.BandParty.close()
+                }
+            }
             androidx.compose.runtime.SideEffect {
                 // (A DS battle's menu window sits in that corner too, and BATTLE BAND's RUN / BACK run to the screen's edge.)
                 if (::sidePanel.isInitialized) sidePanel.tabInHud = shown && panelClosed || battlePicking.value || dsMenuMode != 0 || band && buttons
@@ -3907,6 +3912,7 @@ class PokeDaisyActivity : Activity() {
         menuKeyTakes(event)?.let { return it }
         quickMenuTakes(event)?.let { return it }
         dsBattleTakes(event)?.let { return it }
+        bandPartyTakes(event)?.let { return it }
         if (hotkeyTakes(event.keyCode, down)) return true
         if (input.onKey(event.keyCode, down)) {
             if (down && !physicalPadUsed && event.device?.isVirtual == false) {
@@ -4152,6 +4158,59 @@ class PokeDaisyActivity : Activity() {
         return true
     }
 
+    /**
+     * BATTLE BAND's party list and a controller: A on POKéMON (the game's cursor there) opens PokeDaisy's list as a tap does,
+     * not the game's party screen; while it's open the D-pad, A and B are its (and stay away from the game until let go,
+     * [menuHeld]). Null = not its business.
+     */
+    private fun bandPartyTakes(event: KeyEvent): Boolean? {
+        val band = com.pokedaisy.app.companion.ui.BandParty
+        val code = event.keyCode
+        val down = event.action == KeyEvent.ACTION_DOWN
+        val key = menuKeyFor(input.buttonFor(code) ?: 0) ?: return null
+        if (!band.open.value) {
+            if (!down || event.repeatCount != 0 || key != MenuKey.A || !band.available) return null
+            if (!::engine.isInitialized || engine.battleMenuCursor.value != 2) return null
+            band.cursor.intValue = -1
+            band.open.value = true
+            bandHat = 0
+            menuHeld.add(code)
+            return true
+        }
+        if (!down) {
+            menuHeld.remove(code)
+            return true
+        }
+        if (event.repeatCount == 0) menuHeld.add(code) else if (code !in menuHeld) return true
+        val rows = band.rows.coerceAtLeast(1)
+        val at = band.cursor.intValue
+        when (key) {
+            MenuKey.UP -> band.cursor.intValue = if (at <= 0) rows - 1 else at - 1
+            MenuKey.DOWN -> band.cursor.intValue = if (at < 0 || at >= rows - 1) 0 else at + 1
+            MenuKey.A -> if (event.repeatCount == 0 && at >= 0) band.pick?.invoke(at)
+            MenuKey.B -> if (event.repeatCount == 0) band.open.value = false
+            else -> Unit
+        }
+        return true
+    }
+
+    /** BATTLE BAND's party list open: a controller's D-pad hat steps it (as [bandPartyTakes] does the D-pad keys). */
+    private fun bandPartyMotion(event: MotionEvent): Boolean {
+        val bits = GbaInput.motionBits(event) ?: return false
+        val pressed = bits and bandHat.inv()
+        bandHat = bits
+        val band = com.pokedaisy.app.companion.ui.BandParty
+        val rows = band.rows.coerceAtLeast(1)
+        val at = band.cursor.intValue
+        when (menuKeyFor(pressed)) {
+            MenuKey.UP -> band.cursor.intValue = if (at <= 0) rows - 1 else at - 1
+            MenuKey.DOWN -> band.cursor.intValue = if (at < 0 || at >= rows - 1) 0 else at + 1
+            else -> Unit
+        }
+        return true
+    }
+    private var bandHat = 0
+
     /** The window's key for a GBA button bit (a diagonal counts as its up / down). */
     private fun menuKeyFor(bits: Int): MenuKey? = when {
         bits and MgbaCore.Key.UP != 0 -> MenuKey.UP
@@ -4274,6 +4333,7 @@ class PokeDaisyActivity : Activity() {
         if (bottomFocus.value && bottomMotion(event)) return true
         if (quickMenu.open && quickMotion(event)) return true
         if (dsBattleMenu.mode != 0 && dsBattleMotion(event)) return true
+        if (com.pokedaisy.app.companion.ui.BandParty.open.value && bandPartyMotion(event)) return true
         if (coopOverlay.takesKeys && coopMotion(event)) return true
         if (event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
             // The right stick: WIDE's look-around (WideCamera). Most pads report it as Z / RZ, some as RX / RY.

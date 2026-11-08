@@ -1,5 +1,6 @@
 package com.pokedaisy.app.companion.ui
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -145,11 +146,13 @@ internal fun BattlePartyList(
     onPick: ((Int) -> Unit)? = null,
     selected: Int = -1,
     pickable: (Int) -> Boolean = { i -> party[i].let { !it.isEgg && it.hp > 0 } },
+    /** A controller's row (BATTLE BAND's [BandParty]): the party, then CANCEL at party.size; -1 = the list's own cursor. */
+    keyCursor: Int = -1,
 ) {
     CompanionBackHandler(enabled = !busy, onBack = onBack)
     val callback = onPick != null
     val best = remember(party, foe, active) { recommendedSwitch(party, foe, active) }?.takeIf { showHints && !callback }
-    val cursor = if (callback) selected
+    val cursor = if (keyCursor >= 0) keyCursor else if (callback) selected
         else party.indexOfFirst { it == best }.takeIf { it >= 0 } ?: party.indexOfFirst { isOut(it, active) }
     val enabled = (battleInput != null || callback) && !busy
     val palette = partyPaletteFor(activeGame ?: com.pokedaisy.app.companion.data.GameKind.FIRERED)
@@ -166,15 +169,16 @@ internal fun BattlePartyList(
                     .slotClickable(sound = callback, enabled = pick) { if (onPick != null) onPick(i) else battleInput?.switchTo(mon.personality) },
             ) { PartyListRow(palette, mon, selected = i == cursor, u, edge, tag) }
         }
-        ListCancel(!busy, rowH * 0.7f, edge, onBack)
+        ListCancel(!busy, rowH * 0.7f, edge, onBack, selected = keyCursor == party.size)
     }
 }
 
 @Composable
-private fun ListCancel(enabled: Boolean, h: Dp, edge: Dp, onClick: () -> Unit) {
+private fun ListCancel(enabled: Boolean, h: Dp, edge: Dp, onClick: () -> Unit, selected: Boolean = false) {
     val m = rememberGbaTextMetrics(1f)
     PlatinumButton(
-        fill = RunBlue, frame = RunBlueDark, modifier = Modifier.fillMaxWidth().height(h),
+        fill = RunBlue, frame = RunBlueDark,
+        modifier = Modifier.fillMaxWidth().height(h).then(if (selected) Modifier.border(m.u * 2, Color.White, PixelRoundedShape(5.dp)) else Modifier),
         enabled = enabled, pressesGame = false, outline = m.u, contentPadding = PaddingValues(end = edge), onClick = onClick,
     ) { GbaText(tr("CANCEL"), buttonContent, if (buttonContent == Color.White) Color(0xFF383838) else Color.Transparent, m, bold = gameBoldLabels()) }
 }

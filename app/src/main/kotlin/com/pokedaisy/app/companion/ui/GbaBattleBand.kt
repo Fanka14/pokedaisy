@@ -133,6 +133,30 @@ object GameBandPixels {
     }
 }
 
+/**
+ * BATTLE BAND's party list, shared with the activity: a controller's A on POKéMON opens it as a tap does, and while it's
+ * open the D-pad / A / B steer it instead of the game (PokeDaisyActivity.bandPartyTakes). Set by [GbaBattleBand].
+ */
+object BandParty {
+    val open = androidx.compose.runtime.mutableStateOf(false)
+    /** The controller's row: the party, then CANCEL; -1 = the list's own cursor (BEST / OUT), as after a tap. */
+    val cursor = androidx.compose.runtime.mutableIntStateOf(-1)
+    /** The band shows its actions and POKéMON opens the list (not the game's party screen). */
+    @Volatile
+    var available = false
+    /** The list's rows, CANCEL included. */
+    @Volatile
+    var rows = 0
+    /** Row i picked (the last, CANCEL, closes the list). */
+    @Volatile
+    var pick: ((Int) -> Unit)? = null
+
+    fun close() {
+        open.value = false
+        available = false
+    }
+}
+
 /** What the band shows: nothing, the actions, the moves. */
 private const val MODE_NONE = 0
 private const val MODE_ACTIONS = 1
@@ -178,10 +202,20 @@ fun GbaBattleBand(
     val shownMode = if (mode != MODE_NONE) mode else if (shown && !gameScreen) held.intValue else MODE_NONE
     // POKéMON opens PokeDaisy's party list (BattleButtons' own) where the switch works, not the game's party screen; it
     // goes with the action menu (a switch ran, the turn moved on).
-    var partyOpen by remember { mutableStateOf(false) }
+    var partyOpen by BandParty.open
     LaunchedEffect(shown, state) { if (!shown || state != BATTLE_INPUT_ACTION_SELECT) partyOpen = false }
     // (With one Pokémon too: the list still shows it, OUT, and CANCEL.)
     val ownParty = battleInput?.canSwitch == true && snapshot.party.isNotEmpty()
+    // A controller's A on POKéMON opens the list too, and its D-pad / A / B steer it (PokeDaisyActivity.bandPartyTakes).
+    androidx.compose.runtime.SideEffect {
+        BandParty.available = ownParty && shownMode == MODE_ACTIONS && picture != null && !busy && mode != MODE_NONE
+        BandParty.rows = snapshot.party.size + 1
+        BandParty.pick = { i ->
+            val mon = snapshot.party.getOrNull(i)
+            if (mon == null) partyOpen = false
+            else if (canSendIn(mon, snapshot.battlePlayer)) battleInput?.switchTo(mon.personality)
+        }
+    }
     if (shownMode == MODE_NONE || picture == null) return
     val idle = busy || mode == MODE_NONE
     val moves = snapshot.battlePlayer.getOrNull(0)?.moves.orEmpty().take(4)
@@ -228,7 +262,10 @@ fun GbaBattleBand(
             }
             Area(2 * gap + promptW, boxW - gap) {
                 ActionGrid(snapshot, battleInput, idle, wild, moves.isNotEmpty(), innerH) {
-                    if (ownParty) partyOpen = true else battleInput?.selectAction(2)
+                    if (ownParty) {
+                        BandParty.cursor.intValue = -1
+                        partyOpen = true
+                    } else battleInput?.selectAction(2)
                 }
             }
         } else {
