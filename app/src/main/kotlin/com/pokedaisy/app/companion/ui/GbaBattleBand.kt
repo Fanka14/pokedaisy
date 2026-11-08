@@ -24,6 +24,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -174,6 +176,11 @@ fun GbaBattleBand(
         else { kotlinx.coroutines.delay(HOLD_MS); held.intValue = MODE_NONE }
     }
     val shownMode = if (mode != MODE_NONE) mode else if (shown && !gameScreen) held.intValue else MODE_NONE
+    // POKéMON opens PokeDaisy's party list (BattleButtons' own) where the switch works, not the game's party screen; it
+    // goes with the action menu (a switch ran, the turn moved on).
+    var partyOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(shown, state) { if (!shown || state != BATTLE_INPUT_ACTION_SELECT) partyOpen = false }
+    val ownParty = battleInput?.canSwitch == true && snapshot.party.size > 1
     if (shownMode == MODE_NONE || picture == null) return
     val idle = busy || mode == MODE_NONE
     val moves = snapshot.battlePlayer.getOrNull(0)?.moves.orEmpty().take(4)
@@ -219,13 +226,16 @@ fun GbaBattleBand(
                 } else PromptBox(snapshot, innerH)
             }
             Area(2 * gap + promptW, boxW - gap) {
-                ActionGrid(snapshot, battleInput, idle, wild, moves.isNotEmpty(), innerH)
+                ActionGrid(snapshot, battleInput, idle, wild, moves.isNotEmpty(), innerH) {
+                    if (ownParty) partyOpen = true else battleInput?.selectAction(2)
+                }
             }
         } else {
             Area(gap, boxW - gap) {
                 MoveGrid2x2(moves, battleInput, idle, showHints, innerH)
             }
         }
+        if (partyOpen && shownMode == MODE_ACTIONS) BattlePartyWindow(snapshot, battleInput, busy, showHints) { partyOpen = false }
     }
 }
 
@@ -255,7 +265,7 @@ private fun PromptBox(snapshot: SnapshotView, h: Float) {
 
 /** FIGHT / BAG over POKéMON / RUN, as big as the band's right part. */
 @Composable
-private fun ActionGrid(snapshot: SnapshotView, battleInput: BattleInput?, idle: Boolean, wild: Boolean, hasMoves: Boolean, h: Float) {
+private fun ActionGrid(snapshot: SnapshotView, battleInput: BattleInput?, idle: Boolean, wild: Boolean, hasMoves: Boolean, h: Float, onParty: () -> Unit) {
     val base = LocalDensity.current
     // Two rows and a gap in the band's height: a GBA pixel of the buttons' art about 1/48th of it.
     val k = (h / 48f).toInt().coerceAtLeast(1)
@@ -284,7 +294,7 @@ private fun ActionGrid(snapshot: SnapshotView, battleInput: BattleInput?, idle: 
                 Cell(1, Modifier.weight(1f), tr("BAG"), BagOrange, BagOrangeDark, enabled, { PixelArt(BAG_ICON, BAG_COLORS, Modifier.size(u * 14)) }) { battleInput?.selectAction(1) }
             }
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
-                Cell(2, Modifier.weight(1f), tr("POKéMON"), MonGreen, MonGreenDark, enabled, { PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 14)) }) { battleInput?.selectAction(2) }
+                Cell(2, Modifier.weight(1f), tr("POKéMON"), MonGreen, MonGreenDark, enabled, { PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 14)) }, onParty)
                 Cell(3, Modifier.weight(1f), tr("RUN"), RunBlue, RunBlueDark, enabled && wild, { PixelArt(RUN_ICON, RUN_COLORS, Modifier.size(u * 14)) }) { battleInput?.selectAction(3) }
             }
         }

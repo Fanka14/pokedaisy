@@ -179,6 +179,18 @@ fun BattleButtons(
     }
 }
 
+/** POKéMON's list on its own, over the whole stage, for BATTLE BAND (its POKéMON opens this, not the game's party screen). */
+@Composable
+internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, onClose: () -> Unit) {
+    val n = snapshot.party.size.coerceAtLeast(1)
+    BattleList(1f, true, 8.dp, onClose, PARTY_LIST_W, n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f) { u2 ->
+        BattlePartyList(
+            snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
+            u2 * PARTY_LIST_W, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose,
+        )
+    }
+}
+
 /** How far (GBA pixels) the buttons and the lists' rows run past the screen's right edge: their right border, corners and
  * bevel band out of sight. */
 private const val EDGE = 13
