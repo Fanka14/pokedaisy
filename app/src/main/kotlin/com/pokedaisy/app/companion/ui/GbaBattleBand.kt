@@ -277,6 +277,9 @@ fun GbaBattleBand(
     }
 }
 
+/** How tall (dp) a move card is drawn as: about its height on the companion's battle screen (ONE-TAP MOVES' two lines). */
+private const val MOVE_CARD_DP = 96f
+
 /** A density whose GBA pixel ([rememberGbaTextMetrics]' u) is [k] screen px. */
 private fun pixelDensity(k: Int, base: Density) = Density(k * 16f / 20f, base.fontScale)
 
@@ -357,7 +360,14 @@ private fun MoveGrid2x2(moves: List<com.pokedaisy.app.companion.data.MoveView>, 
                     Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
                         for (col in 0 until 2) {
                             val i = row * 2 + col
-                            MoveListRow(moves.getOrNull(i), i, if (enabled) battleInput else null, !enabled, showHints, 0.dp, Modifier.weight(1f).fillMaxHeight().cursorFrame(i == cursor, u))
+                            // The companion's own move card (type colours, the verdict chips), drawn at the size it has on
+                            // the companion's screen: its text is in sp, so a density that makes the card MOVE_CARD_DP tall.
+                            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().cursorFrame(i == cursor, u)) {
+                                val cardPx = with(LocalDensity.current) { maxHeight.toPx() }
+                                CompositionLocalProvider(LocalDensity provides Density(cardPx / MOVE_CARD_DP, 1f)) {
+                                    MoveCard(moves.getOrNull(i), if (enabled) battleInput else null, i, !enabled, showHints, Modifier.fillMaxSize(), compact = true)
+                                }
+                            }
                         }
                     }
                 }
