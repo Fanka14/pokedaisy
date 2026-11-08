@@ -644,6 +644,11 @@ private fun homeRows(
             tk("BATTLE BUTTONS"), onOff(s.battleButtons), subtitle = "FIGHT, POKéMON and RUN beside a battle",
             labelBadge = NewFeatures.badge(NewFeatures.BATTLE_BUTTONS),
         ) { s.setBattleButtons(!s.battleButtons); changed() }.takeIf { !s.usesSecondScreen },
+        // With BATTLE BUTTONS on: a GBA battle's menu as one band across the bottom (GbaBattleBand).
+        SettingRow(
+            tk("BATTLE BAND"), onOff(s.battleBand), subtitle = "The battle menu as one wide band",
+            labelBadge = NewFeatures.badge(NewFeatures.BATTLE_BAND),
+        ) { s.setBattleBand(!s.battleBand); changed() }.takeIf { !s.usesSecondScreen && s.battleButtons },
         // STATUS BAR, SHADERS, OVERLAY (and an upright phone's COMPANION): on their own page.
         SettingRow(tk("DISPLAY OPTIONS"), null, subtitle = "Status bar, shaders, overlay", opensPage = true) { navigate(Page.DISPLAY) },
         // One screen sideways: a window in the middle over the game, or the side panel (this companion switches at once).

@@ -1991,6 +1991,10 @@ fun main(args: Array<String>) {
                 Shot("ds-battle-${dsGame.name.lowercase()}-$what", tw, th, td, { { DsBattlePreview(dsGame, state) } })
             }
         }.toTypedArray(),
+        // BATTLE BAND (GbaBattleBand): a GBA battle on a 20:9 phone held sideways (2992 x 1344), the actions and the moves.
+        *listOf(BATTLE_INPUT_ACTION_SELECT to "actions", com.pokedaisy.app.companion.data.BATTLE_INPUT_MOVE_SELECT to "moves").map { (state, what) ->
+            Shot("gba-battle-band-$what", 2992, 1344, 3f, { { GbaBattleBandPreview(state) } })
+        }.toTypedArray(),
         Shot("status-bar", tw, th, td, {
             {
                 androidx.compose.foundation.layout.Box(
@@ -3014,5 +3018,28 @@ fun DsBattlePreview(dsGame: GameKind, state: Int) {
             ) else drawRect(androidx.compose.ui.graphics.Color(0xFF7FB0A0), picture.topLeft, picture.size)
         }
         com.pokedaisy.app.companion.ui.DsBattleMenu(snap, menu, FakeBattleInput(false), picture, shown = true, gameFills = wide != null)
+    }
+}
+
+/** GbaBattleBand over a stand-in GBA battle at a Pixel 8 Pro's screen held sideways: EXPAND's wide battle (the 3:2 frame
+ * in the middle, its background on to the edges). No ROM here, so the prompt is the band's own (no frame to copy). */
+@Composable
+fun GbaBattleBandPreview(state: Int) {
+    val snap = battle(state)
+    androidx.compose.foundation.layout.BoxWithConstraints(androidx.compose.ui.Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFFA8D8F0))) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val w = with(density) { maxWidth.toPx() }
+        val h = with(density) { maxHeight.toPx() }
+        val pw = h * 1.5f
+        val picture = androidx.compose.ui.geometry.Rect((w - pw) / 2, 0f, (w + pw) / 2, h)
+        androidx.compose.foundation.Canvas(androidx.compose.ui.Modifier.fillMaxSize()) {
+            val gp = h / 160f
+            // Sky, then grass from the platforms' line; the two platforms; the band's dark rows under the scene.
+            drawRect(androidx.compose.ui.graphics.Color(0xFFB8E07A), androidx.compose.ui.geometry.Offset(0f, 64 * gp), androidx.compose.ui.geometry.Size(w, 48 * gp))
+            drawOval(androidx.compose.ui.graphics.Color(0xFF8CBF55), androidx.compose.ui.geometry.Offset(picture.left + 140 * gp, 52 * gp), androidx.compose.ui.geometry.Size(80 * gp, 18 * gp))
+            drawOval(androidx.compose.ui.graphics.Color(0xFF8CBF55), androidx.compose.ui.geometry.Offset(picture.left + 10 * gp, 96 * gp), androidx.compose.ui.geometry.Size(96 * gp, 18 * gp))
+            drawRect(androidx.compose.ui.graphics.Color(0xFF283040), androidx.compose.ui.geometry.Offset(0f, 112 * gp), androidx.compose.ui.geometry.Size(w, 48 * gp))
+        }
+        com.pokedaisy.app.companion.ui.GbaBattleBand(snap, FakeBattleInput(false), picture, shown = true, showHints = true, prompt = null)
     }
 }

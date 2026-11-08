@@ -267,6 +267,8 @@ class PokeDaisyActivity : Activity() {
     /** BATTLE BUTTONS (same view as the HUD): SETTINGS' switch, BATTLE HINTS, one screen (no second one), and where the
      * GBA's own picture is (EXPAND: the battle's middle, which [hudFrame] leaves out). */
     private val battleButtonsOn = androidx.compose.runtime.mutableStateOf(true)
+    /** BATTLE BAND ([Prefs.battleBand]): a GBA battle's menu as one band across the screen instead of BATTLE BUTTONS. */
+    private val battleBandOn = androidx.compose.runtime.mutableStateOf(true)
     private val battleHints = androidx.compose.runtime.mutableStateOf(true)
     private val hudSingleScreen = androidx.compose.runtime.mutableStateOf(false)
     private val coreFrame = androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
@@ -1461,6 +1463,11 @@ class PokeDaisyActivity : Activity() {
         override val battleButtons get() = Prefs(this@PokeDaisyActivity).battleButtons
         override fun setBattleButtons(on: Boolean) {
             Prefs(this@PokeDaisyActivity).battleButtons = on
+            runOnUiThread { syncGameScreen() }
+        }
+        override val battleBand get() = Prefs(this@PokeDaisyActivity).battleBand
+        override fun setBattleBand(on: Boolean) {
+            Prefs(this@PokeDaisyActivity).battleBand = on
             runOnUiThread { syncGameScreen() }
         }
         override val fieldHudStyle get() = Prefs(this@PokeDaisyActivity).fieldHudStyle
@@ -3195,6 +3202,7 @@ class PokeDaisyActivity : Activity() {
         hudStyle.value = prefs.fieldHudStyle
         quickShown.value = prefs.quickMenuActions
         battleButtonsOn.value = prefs.battleButtons
+        battleBandOn.value = prefs.battleBand
         battleHints.value = prefs.showHints
         hudUpright.value = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
         com.pokedaisy.app.companion.ui.CompanionStatusBar.shown = prefs.statusBar && prefs.statusBarOnCompanion
@@ -3584,6 +3592,9 @@ class PokeDaisyActivity : Activity() {
             val buttonsWanted = battleButtonsOn.value && hudSingleScreen.value && !hudUpright.value && snap.hasData && !snap.unsupported &&
                 snap.inBattle && !snap.isDoubleBattle && (!romIsNds || dsFloats.value && !dsPip.value)
             val buttons = buttonsWanted && battleRead && !dsWindowUp
+            // BATTLE BAND: Gen 3 GBA games only (a Game Boy game's menus and frame are another shape).
+            val band = battleBandOn.value && !romIsNds && engine?.gba == true
+            androidx.compose.runtime.SideEffect { if (!band || !buttons) com.pokedaisy.app.companion.ui.GameBandPixels.wanted = false }
             // Where BATTLE BUTTONS can't stand in for a DS battle's command panel, that panel floats in too.
             androidx.compose.runtime.SideEffect { engine?.dsBattleMenuFloats = dsFloats.value && !dsPip.value && !buttonsWanted }
             androidx.compose.runtime.CompositionLocalProvider(
@@ -3616,6 +3627,10 @@ class PokeDaisyActivity : Activity() {
                         dsStripShown.value = buttonsWanted && battleRead
                         dsStripActive.value = !dsWindowUp
                     }
+                } else if (band) {
+                    // BATTLE BAND: the game's menu becomes one band across the screen (its prompt box copied from the frame).
+                    androidx.compose.runtime.SideEffect { com.pokedaisy.app.companion.ui.GameBandPixels.wanted = buttons }
+                    com.pokedaisy.app.companion.ui.GbaBattleBand(snap, battleInput, coreFrame.value, buttons, battleHints.value)
                 } else com.pokedaisy.app.companion.ui.BattleButtons(
                     snap, buttons, battleInput, battleHints.value,
                     modifier = androidx.compose.ui.Modifier.graphicsLayer { alpha = hudAlpha },

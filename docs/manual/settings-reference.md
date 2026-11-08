@@ -50,6 +50,7 @@ The `SPEED OPTIONS` page:
 | `DS LAYOUT` | **`ONE SCREEN`**, `SIDE BY SIDE`, `LARGE + SMALL`, `PICTURE IN PICTURE`, `STACKED` | Only on a device with one screen (or with `SINGLE SCREEN` on): where a DS game's two screens go when you hold it sideways. Opens a list with a picture of each. | [Devices](devices.md#ds-layout-two-screens-on-one) |
 | `HUD` | **`ON`**, `OFF` (a page) | Your party, a minimap, your Poké Balls and `BAG` / `WILD` buttons on the game while you walk around, with `LAYOUT`, `LOOK`, `SIZE` and which parts show. | [HUD](hud.md) |
 | `BATTLE BUTTONS` | **`ON`**, `OFF` | Only on a device with one screen (or with `SINGLE SCREEN` on): `FIGHT`, `POKéMON` and `RUN` at the top right, beside the battle. | [Battle](battle.md) |
+| `BATTLE BAND` | **`ON`**, `OFF` | Shows while `BATTLE BUTTONS` is on. In the GBA games, the battle menu becomes one band across the bottom of the screen in place of the buttons. | [Battle](battle.md#one-band-across-the-screen-battle-band) |
 | `DISPLAY OPTIONS` | a page | `STATUS BAR`, `SHADERS`, `OVERLAY`, `LIGHT COMPANION` and, on a phone, `COMPANION`; see the next table. | [Screen](screen.md) |
 | `COMPANION VIEW` | **`WINDOW`**, `SIDE PANEL` | Only on a device with one screen (or with `SINGLE SCREEN` on): the companion as a window in the middle, over the game, or as a panel on the right, when you hold it sideways. | [Devices](devices.md) |
 | `COMPANION BUTTON` | **`ON`**, `OFF` | Where `COMPANION VIEW` shows: the small button at the bottom of the screen's right edge that opens the companion. Off, `BACK` and the HUD's `COMPANION` button still do. | [Devices](devices.md) |
@@ -190,6 +191,7 @@ At the top of SETTINGS, in a blue frame, in the games where any of it works.
 | `DS LAYOUT` | as on the top screen | Only while a DS game is running on one screen. Changes the game straight away. | [Devices](devices.md#ds-layout-two-screens-on-one) |
 | `HUD` | a page | The same rows as on the top screen; the game changes as you tap. | [HUD](hud.md) |
 | `BATTLE BUTTONS` | as on the top screen | Only on a device with one screen (or with `SINGLE SCREEN` on): `FIGHT`, `POKéMON` and `RUN` beside the battle. | [Battle](battle.md) |
+| `BATTLE BAND` | as on the top screen | Shows while `BATTLE BUTTONS` is on: the GBA games' battle menu as one band across the bottom. | [Battle](battle.md#one-band-across-the-screen-battle-band) |
 | `DISPLAY OPTIONS` | a page | As on the top screen. | [Screen](screen.md) |
 | `COMPANION VIEW` | as on the top screen | Only on one screen held sideways (or with `SINGLE SCREEN` on). Switches right away. | [Devices](devices.md) |
 | `COMPANION BUTTON` | as on the top screen | With `COMPANION VIEW`. Switches right away. | [Devices](devices.md) |

@@ -857,6 +857,7 @@ class EmulatorEngine(
         vw = MgbaCore.pkVideoWidth()
         vh = MgbaCore.pkVideoHeight()
         videoBuf = MgbaCore.pkVideoBuffer()
+        com.pokedaisy.app.companion.ui.GameBandPixels.clear()
         // The core starts with no follower and no tint (pk_wide_extras_reset): so do what this engine last sent.
         followerSent = null
         followerShown = false
@@ -1119,6 +1120,8 @@ class EmulatorEngine(
                 }
                 MgbaCore.pkRunFrame()
                 onFrame?.invoke()
+                // BATTLE BAND: the game's prompt box, copied between frames while the band is up.
+                if (gba && !nds) com.pokedaisy.app.companion.ui.GameBandPixels.capture(videoBuf, vw, vh)
                 coop?.afterFrame()
                 framesRun++
                 ticksSinceFrame = 0

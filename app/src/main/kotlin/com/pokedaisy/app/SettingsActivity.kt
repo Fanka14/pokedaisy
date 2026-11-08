@@ -801,6 +801,14 @@ class SettingsActivity : ComponentActivity() {
                 prefs.battleButtons = !prefs.battleButtons
                 revision++
             }.takeIf { !usesSecondScreen },
+            // With BATTLE BUTTONS on: a GBA battle's menu as one band across the bottom (GbaBattleBand).
+            SettingRow(
+                tk("BATTLE BAND"), onOff(prefs.battleBand), subtitle = "The battle menu as one wide band",
+                labelBadge = com.pokedaisy.app.companion.NewFeatures.badge(com.pokedaisy.app.companion.NewFeatures.BATTLE_BAND),
+            ) {
+                prefs.battleBand = !prefs.battleBand
+                revision++
+            }.takeIf { !usesSecondScreen && prefs.battleButtons },
             // STATUS BAR, SHADERS, OVERLAY (and an upright phone's COMPANION): on their own page.
             SettingRow(tk("DISPLAY OPTIONS"), null, subtitle = "Status bar, shaders, overlay", opensPage = true) { screen = Screen.DISPLAY },
             // One screen sideways: the companion as a window in the middle over the game, or the side panel.

@@ -495,6 +495,8 @@ internal val trSettings: Map<String, Tr> = mapOf(
     "Party, map and more on the field" to Tr(ja = "フィールドで てもち マップ など", fr = "Équipe, carte et plus sur le terrain", de = "Team, Karte und mehr im Gelände", it = "Squadra, mappa e altro sul campo", es = "Equipo, mapa y más en el campo", br = "Equipe, mapa e mais no campo", pt = "Equipe, mapa e mais no campo"),
     // BATTLE BUTTONS.
     "BATTLE BUTTONS" to Tr(ja = "バトル ボタン", fr = "BOUTONS DE COMBAT", de = "KAMPFTASTEN", it = "PULSANTI LOTTA", es = "BOTONES DE COMBATE", br = "BOTÕES DE BATALHA", pt = "BOTÕES DE BATALHA"),
+    "BATTLE BAND" to Tr(ja = "バトル バンド", fr = "BANDEAU DE COMBAT", de = "KAMPFLEISTE", it = "BANDA LOTTA", es = "BANDA DE COMBATE", br = "FAIXA DE BATALHA", pt = "FAIXA DE BATALHA"),
+    "The battle menu as one wide band" to Tr(ja = "バトルの メニューを ひろい バンドに", fr = "Le menu de combat en un grand bandeau", de = "Das Kampfmenü als breite Leiste", it = "Il menu di lotta in una banda larga", es = "El menú de combate en una banda ancha", br = "O menu de batalha numa faixa larga", pt = "O menu de batalha numa faixa larga"),
     "FIGHT, POKéMON and RUN beside a battle" to Tr(ja = "バトルの よこに たたかう ポケモン にげる", fr = "ATTAQUE, POKéMON et FUITE à côté du combat", de = "KAMPF, POKéMON und FLUCHT neben dem Kampf", it = "LOTTA, POKéMON e FUGA accanto alla lotta", es = "LUCHAR, POKéMON y HUIR junto al combate", br = "LUTAR, POKéMON e FUGIR ao lado da batalha", pt = "LUTAR, POKéMON e FUGIR ao lado da batalha"),
     "MINIMAP" to Tr(ja = "ミニマップ", fr = "MINI-CARTE", de = "MINIKARTE", it = "MINIMAPPA", es = "MINIMAPA", br = "MINIMAPA", pt = "MINIMAPA"),
     "LAYOUT" to Tr(ja = "レイアウト", fr = "MISE EN PAGE", de = "LAYOUT", it = "DISPOSIZIONE", es = "DISPOSICIÓN", br = "LAYOUT", pt = "DISPOSIÇÃO"),

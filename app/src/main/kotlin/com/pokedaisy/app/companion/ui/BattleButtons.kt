@@ -294,10 +294,10 @@ internal fun FittedGbaText(text: String, color: Color, shadow: Color, m: GbaText
 
 // ---- Pixel art ----------------------------------------------------------------------------------
 
-private val POKE_BALL = mapOf('K' to Color(0xFF202020), 'R' to Color(0xFFE83028), 'W' to Color.White, 'H' to Color(0xFFF8A8A0))
+internal val POKE_BALL = mapOf('K' to Color(0xFF202020), 'R' to Color(0xFFE83028), 'W' to Color.White, 'H' to Color(0xFFF8A8A0))
 
 /** A running figure: K outline, B its body. */
-private val RUN_ICON = listOf(
+internal val RUN_ICON = listOf(
     "........KKK.....",
     ".......KBBBK....",
     ".......KBBBK....",
@@ -315,4 +315,4 @@ private val RUN_ICON = listOf(
     "...KK.......KK..",
     "................",
 )
-private val RUN_COLORS = mapOf('K' to Color(0xFF1C2A44), 'B' to Color.White)
+internal val RUN_COLORS = mapOf('K' to Color(0xFF1C2A44), 'B' to Color.White)

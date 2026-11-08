@@ -1451,7 +1451,7 @@ private fun pocketLabel(pocket: Int) = when (pocket) {
 private val CAUGHT_BALL = mapOf('K' to Color(0xFF202020), 'R' to Color(0xFFE83028), 'W' to Color.White, 'H' to Color(0xFFF8A8A0))
 
 /** A satchel: K outline, B leather, L its light edge, Y the buckle. */
-private val BAG_ICON = listOf(
+internal val BAG_ICON = listOf(
     ".....KKKKKK.....",
     "....KK....KK....",
     "....K......K....",
@@ -1469,7 +1469,7 @@ private val BAG_ICON = listOf(
     "..KKKKKKKKKKKK..",
     "................",
 )
-private val BAG_COLORS = mapOf('K' to Color(0xFF3A2414), 'B' to Color(0xFFC0783A), 'L' to Color(0xFFE8A868), 'Y' to Color(0xFFF8D030))
+internal val BAG_COLORS = mapOf('K' to Color(0xFF3A2414), 'B' to Color(0xFFC0783A), 'L' to Color(0xFFE8A868), 'Y' to Color(0xFFF8D030))
 
 /** A region map: K frame, G land, B water, Y a road, R a pin with a W glint. */
 private val MAP_ICON = listOf(

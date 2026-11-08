@@ -79,7 +79,7 @@ internal fun BattleMoveList(
  * HUD's GBA pixels, so it follows SIZE like the rest of the HUD.
  */
 @Composable
-private fun MoveListRow(
+internal fun MoveListRow(
     mv: MoveView?, index: Int, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, edge: Dp, modifier: Modifier,
     onPick: ((Int) -> Unit)? = null, cursor: Boolean = false,
 ) {
