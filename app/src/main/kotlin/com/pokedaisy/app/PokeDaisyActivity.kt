@@ -3574,10 +3574,6 @@ class PokeDaisyActivity : Activity() {
             val panelClosed = ::sidePanel.isInitialized && (sidePanel.closed.value || sidePanel.enabled && sidePanel.windowMode)
             // Read here, so the tab steps aside when the DS battle menu comes up (a read in the SideEffect wouldn't redraw).
             val dsMenuMode = dsBattleMenu.mode
-            androidx.compose.runtime.SideEffect {
-                // (A DS battle's menu window sits in that corner too.)
-                if (::sidePanel.isInitialized) sidePanel.tabInHud = shown && panelClosed || battlePicking.value || dsMenuMode != 0
-            }
             // BATTLE BUTTONS: one screen held sideways, a single battle the game's touch input can steer (its state read
             // at least once this battle - it reads NONE in games without it).
             var battleRead by remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -3595,6 +3591,10 @@ class PokeDaisyActivity : Activity() {
             // BATTLE BAND: Gen 3 GBA games only (a Game Boy game's menus and frame are another shape).
             val band = battleBandOn.value && !romIsNds && engine?.gba == true
             androidx.compose.runtime.SideEffect { if (!band || !buttons) com.pokedaisy.app.companion.ui.GameBandPixels.wanted = false }
+            androidx.compose.runtime.SideEffect {
+                // (A DS battle's menu window sits in that corner too, and BATTLE BAND's RUN / BACK run to the screen's edge.)
+                if (::sidePanel.isInitialized) sidePanel.tabInHud = shown && panelClosed || battlePicking.value || dsMenuMode != 0 || band && buttons
+            }
             // Where BATTLE BUTTONS can't stand in for a DS battle's command panel, that panel floats in too.
             androidx.compose.runtime.SideEffect { engine?.dsBattleMenuFloats = dsFloats.value && !dsPip.value && !buttonsWanted }
             androidx.compose.runtime.CompositionLocalProvider(
