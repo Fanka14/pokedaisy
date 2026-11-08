@@ -180,7 +180,8 @@ fun GbaBattleBand(
     // goes with the action menu (a switch ran, the turn moved on).
     var partyOpen by remember { mutableStateOf(false) }
     LaunchedEffect(shown, state) { if (!shown || state != BATTLE_INPUT_ACTION_SELECT) partyOpen = false }
-    val ownParty = battleInput?.canSwitch == true && snapshot.party.size > 1
+    // (With one Pokémon too: the list still shows it, OUT, and CANCEL.)
+    val ownParty = battleInput?.canSwitch == true && snapshot.party.isNotEmpty()
     if (shownMode == MODE_NONE || picture == null) return
     val idle = busy || mode == MODE_NONE
     val moves = snapshot.battlePlayer.getOrNull(0)?.moves.orEmpty().take(4)
