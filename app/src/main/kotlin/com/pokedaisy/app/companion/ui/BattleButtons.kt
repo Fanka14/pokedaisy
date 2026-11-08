@@ -183,10 +183,10 @@ fun BattleButtons(
 @Composable
 internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, onClose: () -> Unit) {
     val n = snapshot.party.size.coerceAtLeast(1)
-    BattleList(1f, true, 8.dp, onClose, PARTY_LIST_W, n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f) { u2 ->
+    BattleList(1f, true, 8.dp, onClose, PARTY_LIST_W, n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f, dimCloses = false) { u2 ->
         BattlePartyList(
             snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
-            u2 * PARTY_LIST_W, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose, keyCursor = BandParty.cursor.intValue,
+            u2 * PARTY_LIST_W, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, 0.dp, onBack = onClose, keyCursor = BandParty.cursor.intValue,
         )
     }
 }
@@ -248,13 +248,19 @@ private val ButtonShadow = Color(0xFF383838)
  * (the dim fades with it); [open]: it's the one open (taps and BACK reach it only then, not while it slides out).
  */
 @Composable
-private fun BattleList(shown: Float, open: Boolean, top: Dp, onClose: () -> Unit, listW: Int, listH: Float, content: @Composable (u: Dp) -> Unit) {
+private fun BattleList(
+    shown: Float, open: Boolean, top: Dp, onClose: () -> Unit, listW: Int, listH: Float,
+    /** A tap on the dim closes the list; false (BATTLE BAND): taps there reach the touch pad under it, whose D-pad steers the list,
+     * and the list stands in the middle, clear of the pad's D-pad and A / B, framed all round rather than running off the edge. */
+    dimCloses: Boolean = true,
+    content: @Composable (u: Dp) -> Unit,
+) {
     val base = LocalDensity.current
     if (open) CompanionBackHandler(onBack = onClose)
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color(0x66000000).copy(alpha = 0.4f * shown))
             .then(
-                if (open) Modifier.soundClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose)
+                if (open && dimCloses) Modifier.soundClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose)
                 else Modifier,
             ),
     ) {
@@ -268,8 +274,8 @@ private fun BattleList(shown: Float, open: Boolean, top: Dp, onClose: () -> Unit
         CompositionLocalProvider(LocalDensity provides scaled) {
             val u = rememberGbaTextMetrics(1f).u
             Box(
-                Modifier.align(Alignment.TopEnd).padding(top = with(scaled) { topPx.toDp() })
-                    .offset(x = u * EDGE).graphicsLayer { translationX = (1f - shown) * size.width }.then(keep),
+                Modifier.align(if (dimCloses) Alignment.TopEnd else Alignment.TopCenter).padding(top = with(scaled) { topPx.toDp() })
+                    .offset(x = if (dimCloses) u * EDGE else 0.dp).graphicsLayer { translationX = (1f - shown) * size.width }.then(keep),
             ) { content(u) }
         }
     }
