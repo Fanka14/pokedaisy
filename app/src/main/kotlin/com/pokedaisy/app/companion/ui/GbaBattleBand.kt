@@ -98,7 +98,30 @@ object GameBandPixels {
                 px[y * PROMPT_W + x] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
             }
         }
+        closeRight(px, rows)
         if (!px.contentEquals(_pixels.value)) _pixels.value = px
+    }
+
+    /**
+     * The game's prompt box has no right edge of its own: the action menu's frame overlaps it (FireRed at x 120), and
+     * [PROMPT_W] took that frame's first columns. Cut where the box's inside ends, close it with its left edge mirrored,
+     * and fill what's left with the band's colour (the top-left corner).
+     */
+    private fun closeRight(px: IntArray, rows: Int) {
+        val inner = 7   // the first row inside the frame (BAND_TOP_ROW's 3 band rows, 2 gold, 2 lilac)
+        if (rows <= inner + 1) return
+        val inside = px[inner * PROMPT_W + PROMPT_W / 4]
+        var left = 0
+        while (left < PROMPT_W / 4 && px[inner * PROMPT_W + left] != inside) left++
+        var edge = PROMPT_W / 4
+        while (edge < PROMPT_W && px[inner * PROMPT_W + edge] == inside) edge++
+        if (left == 0 || left == PROMPT_W / 4 || edge + left > PROMPT_W) return
+        val band = px[0]
+        for (y in 0 until rows) {
+            val row = y * PROMPT_W
+            for (k in 0 until left) px[row + edge + k] = px[row + left - 1 - k]
+            for (x in edge + left until PROMPT_W) px[row + x] = band
+        }
     }
 
     /** Forget the last game's picture (a new game, the band turned off). */
