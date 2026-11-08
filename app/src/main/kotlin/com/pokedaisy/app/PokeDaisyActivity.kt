@@ -3798,8 +3798,20 @@ class PokeDaisyActivity : Activity() {
             menuKeyFor(newly)?.let { CoopBattles.takeKey(it) }
             return
         }
-        input.setTouchBits(gba, turbo)
+        // BATTLE BAND's party list: the pad's A on POKéMON opens it (not the game's party screen) and, while it's open, the
+        // pad steers it; buttons it took stay away from the game until let go.
+        val band = com.pokedaisy.app.companion.ui.BandParty
+        touchBandHeld = touchBandHeld and gba
+        val key = menuKeyFor(newly)
+        if (band.open.value) {
+            key?.let { bandPartyKey(it, first = true) }
+            touchBandHeld = touchBandHeld or gba
+        } else if (key != null && bandPartyOpens(key)) touchBandHeld = touchBandHeld or gba
+        input.setTouchBits(gba and touchBandHeld.inv(), turbo)
     }
+
+    /** The touch pad's buttons BATTLE BAND's party list took ([onTouchKeys]): kept from the game until let go. */
+    private var touchBandHeld = 0
 
     /** When the touch controls' FF went down: a short tap turns FF on / off, a longer press is FF while held. */
     private var touchFfDownAt = 0L
@@ -4169,11 +4181,7 @@ class PokeDaisyActivity : Activity() {
         val down = event.action == KeyEvent.ACTION_DOWN
         val key = menuKeyFor(input.buttonFor(code) ?: 0) ?: return null
         if (!band.open.value) {
-            if (!down || event.repeatCount != 0 || key != MenuKey.A || !band.available) return null
-            if (!::engine.isInitialized || engine.battleMenuCursor.value != 2) return null
-            band.cursor.intValue = -1
-            band.open.value = true
-            bandHat = 0
+            if (!down || event.repeatCount != 0 || !bandPartyOpens(key)) return null
             menuHeld.add(code)
             return true
         }
@@ -4182,16 +4190,32 @@ class PokeDaisyActivity : Activity() {
             return true
         }
         if (event.repeatCount == 0) menuHeld.add(code) else if (code !in menuHeld) return true
+        bandPartyKey(key, first = event.repeatCount == 0)
+        return true
+    }
+
+    /** A on POKéMON (the game's cursor there) with the band's list available: open it, as a tap does. True = opened. */
+    private fun bandPartyOpens(key: MenuKey): Boolean {
+        val band = com.pokedaisy.app.companion.ui.BandParty
+        if (key != MenuKey.A || !band.available || !::engine.isInitialized || engine.battleMenuCursor.value != 2) return false
+        band.cursor.intValue = -1
+        band.open.value = true
+        bandHat = 0
+        return true
+    }
+
+    /** A key on the band's open party list: the D-pad moves its row, A picks it, B closes the list. */
+    private fun bandPartyKey(key: MenuKey, first: Boolean) {
+        val band = com.pokedaisy.app.companion.ui.BandParty
         val rows = band.rows.coerceAtLeast(1)
         val at = band.cursor.intValue
         when (key) {
             MenuKey.UP -> band.cursor.intValue = if (at <= 0) rows - 1 else at - 1
             MenuKey.DOWN -> band.cursor.intValue = if (at < 0 || at >= rows - 1) 0 else at + 1
-            MenuKey.A -> if (event.repeatCount == 0 && at >= 0) band.pick?.invoke(at)
-            MenuKey.B -> if (event.repeatCount == 0) band.open.value = false
+            MenuKey.A -> if (first && at >= 0) band.pick?.invoke(at)
+            MenuKey.B -> if (first) band.open.value = false
             else -> Unit
         }
-        return true
     }
 
     /** BATTLE BAND's party list open: a controller's D-pad hat steps it (as [bandPartyTakes] does the D-pad keys). */
@@ -4199,14 +4223,7 @@ class PokeDaisyActivity : Activity() {
         val bits = GbaInput.motionBits(event) ?: return false
         val pressed = bits and bandHat.inv()
         bandHat = bits
-        val band = com.pokedaisy.app.companion.ui.BandParty
-        val rows = band.rows.coerceAtLeast(1)
-        val at = band.cursor.intValue
-        when (menuKeyFor(pressed)) {
-            MenuKey.UP -> band.cursor.intValue = if (at <= 0) rows - 1 else at - 1
-            MenuKey.DOWN -> band.cursor.intValue = if (at < 0 || at >= rows - 1) 0 else at + 1
-            else -> Unit
-        }
+        menuKeyFor(pressed)?.takeIf { it == MenuKey.UP || it == MenuKey.DOWN }?.let { bandPartyKey(it, first = true) }
         return true
     }
     private var bandHat = 0
