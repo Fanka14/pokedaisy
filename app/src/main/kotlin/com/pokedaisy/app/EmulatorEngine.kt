@@ -294,6 +294,9 @@ class EmulatorEngine(
         get() = battleInput.cursorAddrs
         set(v) { battleInput.cursorAddrs = v }
 
+    /** The game's cursor on the battle menu that waits ([BattleInputController.menuCursor]). */
+    val battleMenuCursor: kotlinx.coroutines.flow.StateFlow<Int> get() = battleInput.menuCursor
+
     /** A fresh read of the battle input state, for RUN's follow-up (see [BattleInputController.stateNow]). */
     var battleStateNow: (() -> Int?)?
         get() = battleInput.stateNow

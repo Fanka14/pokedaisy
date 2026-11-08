@@ -124,6 +124,10 @@ class BattleInputController(
     @Volatile
     var cursorAddrs: CursorAddrs? = null
 
+    /** The game's own cursor on the menu that waits ([BATTLE_INPUT_ACTION_SELECT]: an action's value, MOVE_SELECT: a move),
+     * -1 = none or unknown. Read on every [onState], so a controller's presses show on BATTLE BAND, which covers the game's. */
+    val menuCursor = kotlinx.coroutines.flow.MutableStateFlow(-1)
+
     /** Set once the running game is known to support [switchTo]; null = it doesn't. */
     @Volatile
     var switchAddrs: SwitchAddrs? = null
@@ -562,6 +566,7 @@ class BattleInputController(
             lastKnownState = state
             lastBattler = activeBattler.coerceIn(0, 3)
             gameState = state
+            menuCursor.value = readMenuCursorLocked(state)
             // A pick still steering is still on its menu: nothing below has happened yet.
             if (pickCell >= 0 || gbPickCell >= 0) return
 
@@ -780,6 +785,17 @@ class BattleInputController(
                 else -> if (m.row(pickCell, pickMove) > m.row(cur, pickMove)) MgbaCore.Key.DOWN else MgbaCore.Key.UP
             },
         )
+    }
+
+    private fun readMenuCursorLocked(state: Int): Int {
+        val addrs = cursorAddrs ?: return -1
+        val addr = when (state) {
+            BATTLE_INPUT_ACTION_SELECT -> addrs.action
+            BATTLE_INPUT_MOVE_SELECT -> addrs.move
+            else -> return -1
+        }
+        val v = runCatching { reader.readCoreMemory(addr + lastBattler, 1)[0].toInt() and 0xFF }.getOrNull() ?: return -1
+        return if (v in 0..3) v else -1
     }
 
     /** The cursor can't be steered (unreadable, or it won't move): the blind walk does the pick instead. */

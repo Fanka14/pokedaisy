@@ -25,6 +25,9 @@ interface BattleInput {
     /** Backs out of move-select to action-select (a single B press). */
     fun back()
 
+    /** The game's own cursor on the battle menu that waits (an action's value / a move, -1 = none), or null where it isn't read. */
+    val menuCursor: kotlinx.coroutines.flow.StateFlow<Int>? get() = null
+
     /** Whether [switchTo] works in this game (PokeDaisyActivity's switchAddrsFor knows it). */
     val canSwitch: Boolean get() = false
 

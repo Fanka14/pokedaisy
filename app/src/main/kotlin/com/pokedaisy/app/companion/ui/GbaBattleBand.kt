@@ -2,6 +2,7 @@ package com.pokedaisy.app.companion.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -263,10 +264,12 @@ private fun ActionGrid(snapshot: SnapshotView, battleInput: BattleInput?, idle: 
         val u = m.u
         val enabled = battleInput != null && !idle
         val active = snapshot.battlePlayer.getOrNull(0)
+        // The game's own cursor (a controller steers the menu under the band): its cell gets the white frame.
+        val cursor = gameCursor(battleInput)
         @Composable
-        fun Cell(modifier: Modifier, label: String, fill: Color, frame: Color, on: Boolean, icon: @Composable () -> Unit, pick: () -> Unit) {
+        fun Cell(index: Int, modifier: Modifier, label: String, fill: Color, frame: Color, on: Boolean, icon: @Composable () -> Unit, pick: () -> Unit) {
             PlatinumButton(
-                fill = fill, frame = frame, modifier = modifier.fillMaxHeight(), enabled = on, pressesGame = true, outline = u + 1.dp,
+                fill = fill, frame = frame, modifier = modifier.fillMaxHeight().cursorFrame(index == cursor, u), enabled = on, pressesGame = true, outline = u + 1.dp,
                 contentPadding = PaddingValues(horizontal = u * 4, vertical = u), onClick = pick,
             ) {
                 Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(u * 3, Alignment.CenterHorizontally)) {
@@ -277,12 +280,12 @@ private fun ActionGrid(snapshot: SnapshotView, battleInput: BattleInput?, idle: 
         }
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(u * 3)) {
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
-                Cell(Modifier.weight(1f), tr("FIGHT"), FightRed, FightRedDark, enabled && hasMoves, { HudSpecies(active?.iconAsset, u * 20) }) { battleInput?.selectAction(0) }
-                Cell(Modifier.weight(1f), tr("BAG"), BagOrange, BagOrangeDark, enabled, { PixelArt(BAG_ICON, BAG_COLORS, Modifier.size(u * 14)) }) { battleInput?.selectAction(1) }
+                Cell(0, Modifier.weight(1f), tr("FIGHT"), FightRed, FightRedDark, enabled && hasMoves, { HudSpecies(active?.iconAsset, u * 20) }) { battleInput?.selectAction(0) }
+                Cell(1, Modifier.weight(1f), tr("BAG"), BagOrange, BagOrangeDark, enabled, { PixelArt(BAG_ICON, BAG_COLORS, Modifier.size(u * 14)) }) { battleInput?.selectAction(1) }
             }
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
-                Cell(Modifier.weight(1f), tr("POKéMON"), MonGreen, MonGreenDark, enabled, { PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 14)) }) { battleInput?.selectAction(2) }
-                Cell(Modifier.weight(1f), tr("RUN"), RunBlue, RunBlueDark, enabled && wild, { PixelArt(RUN_ICON, RUN_COLORS, Modifier.size(u * 14)) }) { battleInput?.selectAction(3) }
+                Cell(2, Modifier.weight(1f), tr("POKéMON"), MonGreen, MonGreenDark, enabled, { PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 14)) }) { battleInput?.selectAction(2) }
+                Cell(3, Modifier.weight(1f), tr("RUN"), RunBlue, RunBlueDark, enabled && wild, { PixelArt(RUN_ICON, RUN_COLORS, Modifier.size(u * 14)) }) { battleInput?.selectAction(3) }
             }
         }
     }
@@ -298,6 +301,7 @@ private fun MoveGrid2x2(moves: List<com.pokedaisy.app.companion.data.MoveView>, 
         val m = rememberGbaTextMetrics(1f)
         val u = m.u
         val enabled = battleInput != null && !idle
+        val cursor = gameCursor(battleInput)
         CompanionBackHandler(enabled = enabled) { battleInput?.back() }
         Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(u * 3)) {
@@ -305,7 +309,7 @@ private fun MoveGrid2x2(moves: List<com.pokedaisy.app.companion.data.MoveView>, 
                     Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
                         for (col in 0 until 2) {
                             val i = row * 2 + col
-                            MoveListRow(moves.getOrNull(i), i, if (enabled) battleInput else null, !enabled, showHints, 0.dp, Modifier.weight(1f).fillMaxHeight())
+                            MoveListRow(moves.getOrNull(i), i, if (enabled) battleInput else null, !enabled, showHints, 0.dp, Modifier.weight(1f).fillMaxHeight().cursorFrame(i == cursor, u))
                         }
                     }
                 }
@@ -322,3 +326,14 @@ private fun MoveGrid2x2(moves: List<com.pokedaisy.app.companion.data.MoveView>, 
         }
     }
 }
+
+/** The game's cursor on the menu that waits (an action's value / a move), -1 where it isn't read. */
+@Composable
+private fun gameCursor(battleInput: BattleInput?): Int {
+    val none = remember { MutableStateFlow(-1) }
+    return (battleInput?.menuCursor ?: none).collectAsState().value
+}
+
+/** The game's cursor on a band button: a white frame, two GBA pixels, over the button's own. */
+private fun Modifier.cursorFrame(on: Boolean, u: androidx.compose.ui.unit.Dp): Modifier =
+    if (on) border(u * 2, Color.White, PixelRoundedShape(5.dp)) else this

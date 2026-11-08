@@ -22,7 +22,8 @@ change to any of the places listed under "Where it's decided" updates its rows h
 | FireRed | ES | ✅ | ✅ | ◐ ² | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
 | FireRed | DE / FR / IT / JP | ✅ | ✅ | — | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
 | LeafGreen | USA/Europe rev 0 and 1 | ✅ | ✅ | — | — | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
-| LeafGreen | ES / DE / FR / IT / JP | ✅ | ✅ | — | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
+| LeafGreen | ES / DE / IT / JP | ✅ | ✅ | — | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
+| LeafGreen | FR | ✅ | ✅ | ✅ ³⁰ | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
 | Emerald | USA/Europe | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
 | Emerald | ES / DE / FR / IT | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
 | Emerald | JP | ✅ | ✅ | — | ✅ | ✅ | ✅ | — | ✅ | ✅ | ✅ | ✅ | ✅ ¹⁵ | ✅ ¹⁸ | ✅ ¹⁹ |
@@ -368,6 +369,10 @@ change to any of the places listed under "Where it's decided" updates its rows h
     battle buttons (its panels aren't HeartGold's): DS LAYOUT floats the game's
     touch screen in while its battle UI's input handler is set (+0x238 -> +0x10: the commands, the moves, the party), and
     SMART FF slows down then. EXPAND and STEADY music work as HeartGold's (widecheck's overlap as US HeartGold's).
+
+30. French LeafGreen keeps FireRed's battle EWRAM (gBattleMons 0x02023BE4 as English), so its cursors are FireRed's
+    0x02023FF8 / 0x02023FFC. Checked on a Pixel 8 Pro over a wild battle: the D-pad walked the action cursor 0 -> 2 -> 3 -> 1
+    and the move cursor 0 -> 1, and BATTLE BAND's white frame followed each step. The other languages weren't checked.
 
 ## What each column is
 

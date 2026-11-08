@@ -366,6 +366,7 @@ class PokeDaisyActivity : Activity() {
         }
         override fun back() { if (::engine.isInitialized) engine.battleBack() }
         override val canSwitch get() = ::engine.isInitialized && engine.battleSwitchAddrs != null
+        override val menuCursor get() = if (::engine.isInitialized) engine.battleMenuCursor else null
         override fun switchTo(personality: Long) {
             closeCompanionWindow()
             if (::engine.isInitialized) engine.battleSwitchTo(personality)
