@@ -1109,7 +1109,7 @@ class PokeDaisyActivity : Activity() {
         game == com.pokedaisy.app.companion.data.GameKind.FIRERED && romCode == "BPRE" && romRev == 1 ->
             BattleInputController.SwitchAddrs(partyMenu = 0x0203B0A0L, party = 0x02024284L)
         // French LeafGreen: FireRed's gPartyMenu / gPlayerParty (its port config, port_bpgf0), FireRed's one-column list.
-        // Not yet checked with two Pokémon (the player's save had one).
+        // Checked on a Pixel 8 Pro (2026-11-08): the band's list sent a party Pokémon in.
         game == com.pokedaisy.app.companion.data.GameKind.FIRERED && romCode == "BPGF" ->
             BattleInputController.SwitchAddrs(partyMenu = 0x0203B0A0L, party = 0x02024284L)
         // Recharged Emerald runs as Emerald (BPEE) but is a rebuild with its own RAM: its config carries gPartyMenu (Emerald's

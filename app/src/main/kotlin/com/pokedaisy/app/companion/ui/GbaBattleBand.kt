@@ -278,7 +278,7 @@ fun GbaBattleBand(
 }
 
 /** How tall (dp) a move card is drawn as: about its height on the companion's battle screen (ONE-TAP MOVES' two lines). */
-private const val MOVE_CARD_DP = 96f
+private const val MOVE_CARD_DP = 68f
 
 /** A density whose GBA pixel ([rememberGbaTextMetrics]' u) is [k] screen px. */
 private fun pixelDensity(k: Int, base: Density) = Density(k * 16f / 20f, base.fontScale)
