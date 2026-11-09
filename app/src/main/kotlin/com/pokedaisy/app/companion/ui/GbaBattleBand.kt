@@ -504,14 +504,14 @@ private class BandItemUse(
 /** BATTLE BAND's POKé BALL: the ball's picture (the HUD's) and how many are left. */
 @Composable
 private fun BallButton(icon: String?, count: Int, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val m = rememberGbaTextMetrics(1f)
-    val u = m.u
+    val m = rememberGbaTextMetrics(1.5f)
+    val u = rememberGbaTextMetrics(1f).u
     PlatinumButton(
-        fill = Color(0xFFF8F8F0), frame = Color(0xFFE83028), modifier = modifier.height(u * 30), enabled = enabled, pressesGame = true,
-        outline = u, contentPadding = PaddingValues(horizontal = u * 6, vertical = u * 2), onClick = onClick,
+        fill = Color(0xFFF8F8F0), frame = Color(0xFFE83028), modifier = modifier.height(u * 45), enabled = enabled, pressesGame = true,
+        outline = u, contentPadding = PaddingValues(horizontal = u * 9, vertical = u * 3), onClick = onClick,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(u * 3)) {
-            if (icon != null) HudItemIcon(icon, u * 22, Modifier) else PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 16))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(u * 4)) {
+            if (icon != null) HudItemIcon(icon, u * 33, Modifier) else PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 24))
             GbaText("x$count", Color(0xFF383848), Color(0xFFD0D0C8), m)
         }
     }
