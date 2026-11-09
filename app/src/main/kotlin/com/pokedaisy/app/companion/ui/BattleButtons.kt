@@ -183,13 +183,23 @@ fun BattleButtons(
 @Composable
 internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, onClose: () -> Unit) {
     val n = snapshot.party.size.coerceAtLeast(1)
-    BattleList(1f, true, 2.dp, onClose, PARTY_LIST_W, n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f, dimCloses = false) { u2 ->
-        BattlePartyList(
-            snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
-            u2 * PARTY_LIST_W, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose, keyCursor = BandParty.cursor.intValue,
-        )
+    // On a dark panel of its own (the player's call: the game behind made the rows hard to read).
+    val listH = n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f
+    BattleList(1f, true, 2.dp, onClose, PARTY_LIST_W + PANEL_PAD, listH + 2 * PANEL_PAD, dimCloses = false) { u2 ->
+        Box(
+            Modifier.background(Color(0xE0202838), PixelRoundedShape(u2 * 4))
+                .padding(start = u2 * PANEL_PAD, top = u2 * PANEL_PAD, bottom = u2 * PANEL_PAD),
+        ) {
+            BattlePartyList(
+                snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
+                u2 * PARTY_LIST_W, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose, keyCursor = BandParty.cursor.intValue,
+            )
+        }
     }
 }
+
+/** BATTLE BAND's party panel's margin round the list (GBA pixels). */
+private const val PANEL_PAD = 5
 
 /** How far (GBA pixels) the buttons and the lists' rows run past the screen's right edge: their right border, corners and
  * bevel band out of sight. */
