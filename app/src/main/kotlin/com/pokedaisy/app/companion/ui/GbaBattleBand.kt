@@ -312,6 +312,8 @@ fun GbaBattleBand(
                 }
             }
         }
+        // The stat stages the game never shows (Attack +1, Accuracy -1...), both sides, top left (the player's call).
+        if (!partyOpen && !bagOpen) StatStagesPanel(snapshot, Modifier.align(Alignment.TopStart).padding(8.dp))
         if (bagOpen && shownMode == MODE_ACTIONS && battleInput != null) {
             val use = remember(battleInput, snapshot) { BandItemUse(snapshot, battleInput) { bagOpen = false } }
             BattleBagPanel(snapshot, use) { bagOpen = false }
@@ -533,6 +535,38 @@ private fun BallButton(icon: String?, count: Int, enabled: Boolean, modifier: Mo
         }
     }
 }
+
+/** The battlers' stat stages that aren't 0, the player's over the foe's, each a name and its +n / -n pills; nothing when
+ * every stage is 0. */
+@Composable
+private fun StatStagesPanel(snapshot: SnapshotView, modifier: Modifier) {
+    val sides = listOfNotNull(snapshot.battlePlayer.getOrNull(0), snapshot.battleOpponent.getOrNull(0))
+        .map { mon -> mon to STAGE_LABELS.mapIndexedNotNull { i, label -> mon.statStages?.getOrNull(i)?.takeIf { it != 0 }?.let { label to it } } }
+        .filter { it.second.isNotEmpty() }
+    if (sides.isEmpty()) return
+    val m = rememberGbaTextMetrics(1f)
+    val small = rememberGbaTextMetrics(0.75f)
+    val u = m.u
+    Column(
+        modifier.background(Color(0xF0F8F8F0), PixelRoundedShape(u * 4)).padding(u * 5),
+        verticalArrangement = Arrangement.spacedBy(u * 4),
+    ) {
+        sides.forEach { (mon, stages) ->
+            Column(verticalArrangement = Arrangement.spacedBy(u * 2)) {
+                GbaText(mon.name, Color(0xFF383848), Color(0xFFD0D0C8), m)
+                stages.forEach { (label, stage) ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(u * 3)) {
+                        GbaText(tr(label), Color(0xFF606070), Color(0xFFD8D8D0), small)
+                        StagePill(stage)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** [com.pokedaisy.app.companion.data.MonView.statStages]' order: Attack, Defense, Speed, Sp. Atk, Sp. Def, accuracy, evasion. */
+private val STAGE_LABELS = listOf("ATTACK", "DEFENSE", "SPEED", "SP. ATK", "SP. DEF", "ACCURACY", "EVASION")
 
 /** FireRed's battle bag pockets (gBagMenuState.pocket). */
 private const val BAG_ITEMS = 0

@@ -317,7 +317,7 @@ private fun FactPair(label: String, value: String, small: GbaTextMetrics, modifi
 
 /** A stat stage: "+2" on the foe is bad news for the player (red), "-1" good (green). */
 @Composable
-private fun StagePill(stage: Int, modifier: Modifier = Modifier) {
+internal fun StagePill(stage: Int, modifier: Modifier = Modifier) {
     Box(modifier) { VerdictPill(if (stage > 0) "+$stage" else "$stage", if (stage > 0) verdictColor(50) else verdictColor(200)) }
 }
 
