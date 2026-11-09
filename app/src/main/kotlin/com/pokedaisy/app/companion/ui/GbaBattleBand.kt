@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -206,6 +207,10 @@ fun GbaBattleBand(
     LaunchedEffect(shown, state) { if (!shown || state != BATTLE_INPUT_ACTION_SELECT) partyOpen = false }
     // (With one Pokémon too: the list still shows it, OUT, and CANCEL.)
     val ownParty = battleInput?.canSwitch == true && snapshot.party.isNotEmpty()
+    // BAG opens the HUD's BAG, its items used through the game's battle bag (BattleInput.useItem), where that works.
+    var bagOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(shown, state) { if (!shown || state != BATTLE_INPUT_ACTION_SELECT) bagOpen = false }
+    val ownBag = battleInput?.canUseItems == true
     // A controller's A on POKéMON opens the list too, and its D-pad / A / B steer it (PokeDaisyActivity.bandPartyTakes).
     androidx.compose.runtime.SideEffect {
         BandParty.available = ownParty && shownMode == MODE_ACTIONS && picture != null && !busy && mode != MODE_NONE
@@ -261,7 +266,9 @@ fun GbaBattleBand(
                 } else PromptBox(snapshot, innerH)
             }
             Area(2 * gap + promptW, boxW - gap) {
-                ActionGrid(snapshot, battleInput, idle, wild, moves.isNotEmpty(), innerH) {
+                ActionGrid(snapshot, battleInput, idle, wild, moves.isNotEmpty(), innerH, onBag = {
+                    if (ownBag) bagOpen = true else battleInput?.selectAction(1)
+                }) {
                     if (ownParty) {
                         BandParty.cursor.intValue = -1
                         partyOpen = true
@@ -274,6 +281,18 @@ fun GbaBattleBand(
             }
         }
         if (partyOpen && shownMode == MODE_ACTIONS) BattlePartyWindow(snapshot, battleInput, busy, showHints) { partyOpen = false }
+        // The HUD's POKé BALL in a wild battle, top right (clear of the touch pad's R / FF): a tap throws the pocket's
+        // first ball, as BAG > POKé BALL > USE would.
+        val ball = snapshot.items.firstOrNull { com.pokedaisy.app.companion.data.basePocket(it.pocket) == com.pokedaisy.app.companion.data.POCKET_POKE_BALLS && it.quantity > 0 }
+        if (ownBag && wild && ball != null && shownMode == MODE_ACTIONS && !partyOpen && !bagOpen) {
+            BallButton(ball.iconAsset, ball.quantity, enabled = !idle, Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = with(base) { (boxW * 0.13f).toDp() })) {
+                battleInput?.useItem(ball.itemId, BAG_BALLS, null)
+            }
+        }
+        if (bagOpen && shownMode == MODE_ACTIONS && battleInput != null) {
+            val use = remember(battleInput, snapshot) { BandItemUse(snapshot, battleInput) { bagOpen = false } }
+            BattleBagPanel(snapshot, use) { bagOpen = false }
+        }
     }
 }
 
@@ -306,7 +325,9 @@ private fun PromptBox(snapshot: SnapshotView, h: Float) {
 
 /** FIGHT / BAG over POKéMON / RUN, as big as the band's right part. */
 @Composable
-private fun ActionGrid(snapshot: SnapshotView, battleInput: BattleInput?, idle: Boolean, wild: Boolean, hasMoves: Boolean, h: Float, onParty: () -> Unit) {
+private fun ActionGrid(
+    snapshot: SnapshotView, battleInput: BattleInput?, idle: Boolean, wild: Boolean, hasMoves: Boolean, h: Float, onBag: () -> Unit, onParty: () -> Unit,
+) {
     val base = LocalDensity.current
     // Two rows and a gap in the band's height: a GBA pixel of the buttons' art about 1/48th of it.
     val k = (h / 48f).toInt().coerceAtLeast(1)
@@ -332,7 +353,7 @@ private fun ActionGrid(snapshot: SnapshotView, battleInput: BattleInput?, idle: 
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(u * 3)) {
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
                 Cell(0, Modifier.weight(1f), tr("FIGHT"), FightRed, FightRedDark, enabled && hasMoves, { HudSpecies(active?.iconAsset, u * 20) }) { battleInput?.selectAction(0) }
-                Cell(1, Modifier.weight(1f), tr("BAG"), BagOrange, BagOrangeDark, enabled, { PixelArt(BAG_ICON, BAG_COLORS, Modifier.size(u * 14)) }) { battleInput?.selectAction(1) }
+                Cell(1, Modifier.weight(1f), tr("BAG"), BagOrange, BagOrangeDark, enabled, { PixelArt(BAG_ICON, BAG_COLORS, Modifier.size(u * 14)) }, onBag)
             }
             Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
                 Cell(2, Modifier.weight(1f), tr("POKéMON"), MonGreen, MonGreenDark, enabled, { PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 14)) }, onParty)
@@ -395,3 +416,101 @@ private fun gameCursor(battleInput: BattleInput?): Int {
 /** The game's cursor on a band button: a white frame, two GBA pixels, over the button's own. */
 private fun Modifier.cursorFrame(on: Boolean, u: androidx.compose.ui.unit.Dp): Modifier =
     if (on) border(u * 2, Color.White, PixelRoundedShape(5.dp)) else this
+
+/** What a FireRed bag item does in a battle, for [BandItemUse] (pret/pokefirered's item ids and battle usage). */
+private enum class BattleItemKind { BALL, HEAL, STATUS, HEAL_ALL, REVIVE, AS_IS, ESCAPE }
+
+private fun battleItemKind(itemId: Int): BattleItemKind? = when (itemId) {
+    in 1..12 -> BattleItemKind.BALL
+    13, 20, 21, 22, 26, 27, 28, 29, 30, 31, 38, 44 -> BattleItemKind.HEAL   // POTION ... BERRY JUICE
+    14, 15, 16, 17, 18, 23, 32 -> BattleItemKind.STATUS                      // ANTIDOTE ... FULL HEAL, HEAL POWDER
+    19 -> BattleItemKind.HEAL_ALL                                            // FULL RESTORE
+    24, 25, 33 -> BattleItemKind.REVIVE                                      // REVIVE, MAX REVIVE, REVIVAL HERB
+    in 73..79 -> BattleItemKind.AS_IS                                        // GUARD SPEC., DIRE HIT, the X items
+    80, 81 -> BattleItemKind.ESCAPE                                          // POKé DOLL, FLUFFY TAIL
+    else -> null
+}
+
+/**
+ * The HUD BAG's USE in a battle: an item the battle takes ([battleItemKind]) is used through the game's own battle bag
+ * ([BattleInput.useItem]); medicine first asks for the Pokémon, from the party the game would let it help. [onStarted]
+ * closes the bag once the game has it. Balls and escape items only against a wild Pokémon.
+ */
+private class BandItemUse(
+    private val snapshot: SnapshotView,
+    private val battleInput: BattleInput,
+    private val onStarted: () -> Unit,
+) : com.pokedaisy.app.companion.ItemUse {
+    private val wild = snapshot.enemyParty.isEmpty()
+
+    override fun canUse(itemId: Int): Boolean = when (battleItemKind(itemId)) {
+        null -> false
+        BattleItemKind.BALL, BattleItemKind.ESCAPE -> wild
+        else -> true
+    }
+
+    override fun marked(itemId: Int): Boolean = canUse(itemId)
+
+    override fun picksMon(itemId: Int): Boolean = when (battleItemKind(itemId)) {
+        BattleItemKind.HEAL, BattleItemKind.STATUS, BattleItemKind.HEAL_ALL, BattleItemKind.REVIVE -> true
+        else -> false
+    }
+
+    override fun use(itemId: Int, done: (com.pokedaisy.app.companion.data.ItemUseOutcome) -> Unit) {
+        val pocket = if (battleItemKind(itemId) == BattleItemKind.BALL) BAG_BALLS else BAG_ITEMS
+        if (battleInput.useItem(itemId, pocket, null)) onStarted()
+        else done(com.pokedaisy.app.companion.data.ItemUseOutcome(com.pokedaisy.app.companion.data.ItemUseResult.NOT_NOW))
+    }
+
+    override fun targets(itemId: Int, give: Boolean, done: (com.pokedaisy.app.companion.data.PartyTargets) -> Unit) {
+        val kind = battleItemKind(itemId)
+        done(
+            com.pokedaisy.app.companion.data.PartyTargets(
+                com.pokedaisy.app.companion.data.ItemUseResult.USED,
+                snapshot.party.mapIndexed { i, mon ->
+                    val helps = when (kind) {
+                        BattleItemKind.HEAL -> mon.hp in 1 until mon.maxHp
+                        BattleItemKind.STATUS -> mon.hp > 0 && mon.status.isNotEmpty()
+                        BattleItemKind.HEAL_ALL -> mon.hp > 0 && (mon.hp < mon.maxHp || mon.status.isNotEmpty())
+                        BattleItemKind.REVIVE -> mon.hp == 0
+                        else -> false
+                    }
+                    val verdict = when {
+                        mon.isEgg -> com.pokedaisy.app.companion.data.SlotVerdict.EGG
+                        helps && mon.personality != 0L -> com.pokedaisy.app.companion.data.SlotVerdict.OK
+                        else -> com.pokedaisy.app.companion.data.SlotVerdict.NO_EFFECT
+                    }
+                    com.pokedaisy.app.companion.data.PartyTarget(i, mon.personality, 0, verdict)
+                },
+            ),
+        )
+    }
+
+    override fun useOn(
+        itemId: Int, target: com.pokedaisy.app.companion.data.PartyTarget, moveIndex: Int,
+        done: (com.pokedaisy.app.companion.data.ItemUseOutcome) -> Unit,
+    ) {
+        if (battleInput.useItem(itemId, BAG_ITEMS, target.personality)) onStarted()
+        else done(com.pokedaisy.app.companion.data.ItemUseOutcome(com.pokedaisy.app.companion.data.ItemUseResult.NOT_NOW))
+    }
+}
+
+/** BATTLE BAND's POKé BALL: the ball's picture (the HUD's) and how many are left. */
+@Composable
+private fun BallButton(icon: String?, count: Int, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val m = rememberGbaTextMetrics(1f)
+    val u = m.u
+    PlatinumButton(
+        fill = Color(0xFFF8F8F0), frame = Color(0xFFE83028), modifier = modifier.height(u * 30), enabled = enabled, pressesGame = true,
+        outline = u, contentPadding = PaddingValues(horizontal = u * 6, vertical = u * 2), onClick = onClick,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(u * 3)) {
+            if (icon != null) HudItemIcon(icon, u * 22, Modifier) else PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 16))
+            GbaText("x$count", Color(0xFF383848), Color(0xFFD0D0C8), m)
+        }
+    }
+}
+
+/** FireRed's battle bag pockets (gBagMenuState.pocket). */
+private const val BAG_ITEMS = 0
+private const val BAG_BALLS = 2

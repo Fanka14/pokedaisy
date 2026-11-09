@@ -367,6 +367,12 @@ class PokeDaisyActivity : Activity() {
         override fun back() { if (::engine.isInitialized) engine.battleBack() }
         override val canSwitch get() = ::engine.isInitialized && engine.battleSwitchAddrs != null
         override val menuCursor get() = if (::engine.isInitialized) engine.battleMenuCursor else null
+        override val canUseItems get() = ::engine.isInitialized && engine.battleBagAddrs != null
+        override fun useItem(itemId: Int, pocket: Int, personality: Long?): Boolean {
+            if (!::engine.isInitialized) return false
+            closeCompanionWindow()
+            return engine.battleUseItem(itemId, pocket, personality)
+        }
         override fun switchTo(personality: Long) {
             closeCompanionWindow()
             if (::engine.isInitialized) engine.battleSwitchTo(personality)
@@ -1102,6 +1108,13 @@ class PokeDaisyActivity : Activity() {
      * FireRed rev 0, Ruby/Sapphire and hacks that share a header code (Seaglass)
      * stay out.
      */
+    /** The battle bag [BattleInputController.useItem] steers: retail FireRed / LeafGreen (pret/pokefirered's symbols, the
+     * same in both and both revisions) and French LeafGreen (its EWRAM is theirs here, gBagPockets and gPartyMenu too). */
+    private fun bagAddrsFor(game: com.pokedaisy.app.companion.data.GameKind?): BattleInputController.BagAddrs? =
+        if (game == com.pokedaisy.app.companion.data.GameKind.FIRERED && romCode in setOf("BPRE", "BPGE", "BPGF") &&
+            com.pokedaisy.app.companion.data.runningFireRedHack == null && !com.pokedaisy.app.companion.data.runningLetsGo
+        ) BattleInputController.BagAddrs(menuState = 0x0203ACFCL, itemId = 0x0203AD30L, pockets = 0x0203988CL) else null
+
     private fun switchAddrsFor(game: com.pokedaisy.app.companion.data.GameKind?): BattleInputController.SwitchAddrs? = when {
         // Yellow and the Gen 2 games: their own party menus, read through GbPartySwitch (no gPartyMenu, no personality).
         game.isGen1 || game.isGen2 ->
@@ -2154,6 +2167,7 @@ class PokeDaisyActivity : Activity() {
                 telemetry.knownGMain()?.let { (addr, inBattleOff) -> FfMenuWatch.useKnownGMain(addr, inBattleOff) }
                 if (snap.connected) FfMenuWatch.notePosition(snap.x, snap.y, snap.mapGroup, snap.mapNum, snap.inBattle)
                 if (snap.connected) battleSwitchAddrs = switchAddrsFor(snap.game)
+                if (snap.connected) battleBagAddrs = bagAddrsFor(snap.game)
                 // SHINY ODDS: the foe party of a game it knows (retail FireRed / Emerald), handed to the engine.
                 if (snap.connected) telemetry.knownShinyTarget().let { t ->
                     if (t != shinyTarget) {

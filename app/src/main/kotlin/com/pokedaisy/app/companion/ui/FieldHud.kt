@@ -283,7 +283,7 @@ private fun hudItemSize(m: GbaTextMetrics): Dp = with(LocalDensity.current) { (2
  * picture, over the same room.
  */
 @Composable
-private fun HudItemIcon(asset: String?, size: Dp, modifier: Modifier = Modifier) {
+internal fun HudItemIcon(asset: String?, size: Dp, modifier: Modifier = Modifier) {
     if (!activeGame.isDsGame) {
         ItemIcon(asset, size, modifier)
         return
@@ -1395,6 +1395,13 @@ private fun HudBagPanel(
             }
         }
     }
+}
+
+/** The HUD's BAG over a battle, for BATTLE BAND's BAG: [itemUse] uses the items through the game's battle bag. */
+@Composable
+internal fun BattleBagPanel(snapshot: SnapshotView, itemUse: ItemUse, onClose: () -> Unit) {
+    val m = rememberGbaTextMetrics(1f)
+    HudBagPanel(snapshot, m, itemUse, dock = false, top = true, inset = PaddingValues(), startPocket = POCKET_ITEMS, onClose = onClose)
 }
 
 /** WILD: this map's wild Pokémon by method - icon, name (??? until seen), levels, how often, a ball once caught. */

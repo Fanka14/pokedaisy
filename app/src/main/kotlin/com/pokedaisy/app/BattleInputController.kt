@@ -2,6 +2,7 @@ package com.pokedaisy.app
 
 import android.util.Log
 import com.pokedaisy.app.companion.data.BATTLE_INPUT_ACTION_SELECT
+import com.pokedaisy.app.companion.data.BATTLE_INPUT_BAG_OPEN
 import com.pokedaisy.app.companion.data.BATTLE_INPUT_BUSY
 import com.pokedaisy.app.companion.data.BATTLE_INPUT_MOVE_SELECT
 import com.pokedaisy.app.companion.data.BATTLE_INPUT_NONE
@@ -128,6 +129,29 @@ class BattleInputController(
      * -1 = none or unknown. Read on every [onState], so a controller's presses show on BATTLE BAND, which covers the game's. */
     val menuCursor = kotlinx.coroutines.flow.MutableStateFlow(-1)
 
+    /**
+     * FireRed's battle bag, for [useItem] (pret/pokefirered's symbols; the same in LeafGreen and French LeafGreen):
+     * [menuState] is gBagMenuState (BagStruct: pocket u16 at +6, each pocket's selected row u16 at +8, its scroll at
+     * +0xE), [itemId] gSpecialVar_ItemId (set when A picks a row), [pockets] gBagPockets (8 bytes a pocket: its slots'
+     * address, its capacity; a slot is the item u16 and the quantity u16, the bag compacted while it's open).
+     */
+    data class BagAddrs(val menuState: Long, val itemId: Long, val pockets: Long)
+
+    /** Set once the running game's battle bag is known ([useItem]); null = it isn't. */
+    @Volatile
+    var bagAddrs: BagAddrs? = null
+
+    private enum class ItemPhase { OPEN, PICK, USE, PARTY, WAIT_CLOSE }
+
+    // [useItem] in flight: the item, its pocket, the Pokémon it goes on (null: none), where the loop is, its counters.
+    private var itemWanted = 0
+    private var itemPocket = -1
+    private var itemOn: Long? = null
+    private var itemPhase = ItemPhase.OPEN
+    private var itemFrames = 0
+    private var itemPresses = 0
+    private var itemAPresses = 0
+
     /** Set once the running game is known to support [switchTo]; null = it doesn't. */
     @Volatile
     var switchAddrs: SwitchAddrs? = null
@@ -243,7 +267,7 @@ class BattleInputController(
      * left the game stuck with no way to press anything.
      */
     private fun exclusiveLocked() = queue.isNotEmpty() || framesLeft > 0 || switchTarget != null || runPresses > 0 || pickCell >= 0 ||
-        gbPickCell >= 0
+        gbPickCell >= 0 || itemWanted != 0
 
     /** Call once per real emulated frame, before MgbaCore.pkSetKeys. */
     fun tick() {
@@ -256,6 +280,7 @@ class BattleInputController(
                 driveGbPickLocked()
                 if (queue.isEmpty() && gbPickCell < 0) {
                     driveSwitchLocked()
+                    driveItemLocked()
                     driveRunLocked()
                 }
             }
@@ -265,7 +290,7 @@ class BattleInputController(
                 framesLeft = next?.frames ?: 0
                 if (currentBits != 0) {
                     finalPress = queue.none { it.bits != 0 } && pickCell < 0 && (gbPickCell < 0 || gbPickA >= 0) &&
-                        pendingMoveIndex == null && switchTarget == null
+                        pendingMoveIndex == null && switchTarget == null && itemWanted == 0
                 }
             }
             if (framesLeft > 0) framesLeft--
@@ -290,8 +315,8 @@ class BattleInputController(
             } else {
                 exclusiveFrames = 0
             }
-            if (switchTarget == null && holdTail > 0) holdTail--
-            holdFrame = switchTarget != null || holdTail > 0
+            if (switchTarget == null && itemWanted == 0 && holdTail > 0) holdTail--
+            holdFrame = switchTarget != null || itemWanted != 0 || holdTail > 0
             if (!exclusiveLocked()) finalPress = false
             muteGame = (exclusiveLocked() || pendingMoveIndex != null) && !finalPress
             currentBits to exclusiveLocked()
@@ -515,6 +540,150 @@ class BattleInputController(
         return (0 until 6).firstOrNull { Gfx.u32(raw, it * addrs.monStride) == personality }
     }
 
+    /**
+     * Uses bag item [itemId] from [pocket] (FireRed's battle bag: 0 ITEMS, 1 KEY ITEMS, 2 POKé BALLS) - on the party
+     * Pokémon [personality] where the item asks for one (medicine), else as it is (a ball, an X item). The game's own
+     * bag, steered from its memory like [switchTo]: its cursor is set to the item before BAG is picked (the bag opens
+     * where gBagMenuState says), then checked and steered while it's open, A picks the item, A its USE (the battle's
+     * context menu: USE, CANCEL) and, for medicine, the party menu's cursor goes to the Pokémon and A. False = not
+     * started (no bag here, the action menu isn't up, the item isn't in that pocket).
+     */
+    fun useItem(itemId: Int, pocket: Int, personality: Long?): Boolean {
+        synchronized(lock) {
+            val bag = bagAddrs ?: return false
+            val write = writer ?: return false
+            if (lastKnownState != BATTLE_INPUT_ACTION_SELECT || exclusiveLocked()) return false
+            val index = bagIndexOf(bag, pocket, itemId) ?: return false.also { log("useItem: item $itemId not in pocket $pocket") }
+            // The bag opens on this row (its own sanity checks keep a row the list has); the row stays inside the
+            // list's six-row window.
+            val scroll = (index - 4).coerceAtLeast(0)
+            val state = bag.menuState
+            // gPartyMenu.bagItem cleared too: it says the item's party menu is up ([driveItemLocked]).
+            val partyMenu = switchAddrs?.partyMenu?.takeIf { personality != null && switchAddrs?.gb == null }
+            if (personality != null && partyMenu == null) return false
+            val ok = write(bag.itemId, u16(0)) && (partyMenu == null || write(partyMenu + PARTY_MENU_BAG_ITEM, u16(0))) &&
+                write(state + BAG_POCKET, u16(pocket)) &&
+                write(state + BAG_ROW + 2 * pocket, u16(index - scroll)) && write(state + BAG_SCROLL + 2 * pocket, u16(scroll))
+            if (!ok) return false.also { log("useItem: bag state not written") }
+            log("useItem(item=$itemId, pocket=$pocket, index=$index, on=${personality?.toString(16)})")
+            pendingMoveIndex = null
+            pickCellLocked(1, move = false)   // BAG
+            itemWanted = itemId
+            itemPocket = pocket
+            itemOn = personality
+            itemPhase = ItemPhase.OPEN
+            itemFrames = 0
+            itemPresses = 0
+            itemAPresses = 0
+            return true
+        }
+    }
+
+    private fun driveItemLocked() {
+        if (itemWanted == 0 || pickCell >= 0) return
+        val bag = bagAddrs ?: return endItemLocked("no addresses")
+        itemFrames++
+        when (itemPhase) {
+            ItemPhase.OPEN ->
+                if (lastKnownState == BATTLE_INPUT_BAG_OPEN) {
+                    itemPhase = ItemPhase.PICK
+                    itemFrames = 0
+                } else if (itemFrames > MENU_TIMEOUT_FRAMES) endItemLocked("bag never opened")
+            // The bag fades in and drops presses meanwhile: each step is checked on the bag's memory and pressed again.
+            ItemPhase.PICK -> {
+                val picked = readU16(bag.itemId) ?: return endItemLocked("item var unreadable")
+                if (picked == itemWanted) {
+                    waitFramesLocked(SUBMENU_FRAMES)
+                    itemPhase = ItemPhase.USE
+                    itemFrames = 0
+                    return
+                }
+                if (itemFrames > MENU_TIMEOUT_FRAMES || itemPresses > MAX_CURSOR_PRESSES) return endItemLocked("item never picked")
+                val pocket = readU16(bag.menuState + BAG_POCKET) ?: return endItemLocked("bag unreadable")
+                val want = bagIndexOf(bag, itemPocket, itemWanted) ?: return endItemLocked("item gone from the bag")
+                val pos = (readU16(bag.menuState + BAG_ROW + 2 * pocket) ?: 0) + (readU16(bag.menuState + BAG_SCROLL + 2 * pocket) ?: 0)
+                itemPresses++
+                pressLocked(
+                    when {
+                        pocket != itemPocket -> if (itemPocket > pocket) MgbaCore.Key.RIGHT else MgbaCore.Key.LEFT
+                        pos != want -> if (want > pos) MgbaCore.Key.DOWN else MgbaCore.Key.UP
+                        else -> MgbaCore.Key.A
+                    },
+                )
+                waitFramesLocked(ITEM_STEP_FRAMES)
+            }
+            // USE is the context menu's first entry.
+            ItemPhase.USE -> {
+                pressLocked(MgbaCore.Key.A)
+                itemAPresses++
+                itemPhase = if (itemOn != null) ItemPhase.PARTY else ItemPhase.WAIT_CLOSE
+                itemFrames = 0
+            }
+            ItemPhase.PARTY -> {
+                val addrs = switchAddrs ?: return endItemLocked("no party menu")
+                val target = itemOn ?: return endItemLocked("no Pokémon")
+                // The item's party menu is up once InitPartyMenu has set its bagItem (cleared by [useItem]): the battle's
+                // input state can still say BAG_OPEN there (the controller waits on the bag's return).
+                val partyUp = readU16(addrs.partyMenu + PARTY_MENU_BAG_ITEM) == itemWanted
+                when {
+                    partyUp -> {
+                        val slot = runCatching { reader.readCoreMemory(addrs.partyMenu + PARTY_MENU_SLOT_ID, 1)[0].toInt() }.getOrNull()
+                            ?: return endItemLocked("party cursor unreadable")
+                        val want = slotOf(addrs, target) ?: return endItemLocked("mon not in the party")
+                        if (slot == want) {
+                            pressLocked(MgbaCore.Key.A)
+                            itemPhase = ItemPhase.WAIT_CLOSE
+                            itemFrames = 0
+                        } else if (itemPresses > MAX_CURSOR_PRESSES * 2 || itemFrames > MENU_TIMEOUT_FRAMES) {
+                            endItemLocked("party cursor didn't reach slot $want")
+                        } else {
+                            itemPresses++
+                            pressLocked(cursorKey(addrs, slot, want, partyCount(addrs)))
+                            waitFramesLocked(CURSOR_FRAMES)
+                        }
+                    }
+                    // Still on the bag's context menu long after USE's A: it was dropped - pressed again, a few times at most.
+                    lastKnownState == BATTLE_INPUT_BAG_OPEN && itemFrames > ITEM_REPRESS_FRAMES -> {
+                        if (itemAPresses >= MAX_ITEM_A_PRESSES) return endItemLocked("USE never took")
+                        itemPhase = ItemPhase.USE
+                    }
+                    itemFrames > MENU_TIMEOUT_FRAMES -> endItemLocked("party menu never opened")
+                }
+            }
+            // Keep the player's keys out until the game has taken the item (the bag / party menu gone).
+            ItemPhase.WAIT_CLOSE -> when {
+                lastKnownState == BATTLE_INPUT_BAG_OPEN && itemOn == null && itemFrames > ITEM_REPRESS_FRAMES &&
+                    itemAPresses < MAX_ITEM_A_PRESSES -> itemPhase = ItemPhase.USE
+                lastKnownState != BATTLE_INPUT_BAG_OPEN && lastKnownState != BATTLE_INPUT_PARTY_OPEN -> endItemLocked("done")
+                itemFrames > CLOSE_TIMEOUT_FRAMES -> endItemLocked("bag never closed")
+            }
+        }
+    }
+
+    /** [itemId]'s row in gBagPockets[[pocket]] (the bag's list while it's open: compacted), or null. */
+    private fun bagIndexOf(bag: BagAddrs, pocket: Int, itemId: Int): Int? = runCatching {
+        val head = reader.readCoreMemory(bag.pockets + 8L * pocket, 8)
+        val slots = Gfx.u32(head, 0)
+        val capacity = head[4].toInt() and 0xFF
+        val raw = reader.readCoreMemory(slots, capacity * 4)
+        (0 until capacity).map { (raw[it * 4].toInt() and 0xFF) or ((raw[it * 4 + 1].toInt() and 0xFF) shl 8) }
+            .filter { it != 0 }.indexOf(itemId).takeIf { it >= 0 }
+    }.getOrNull()
+
+    private fun readU16(addr: Long): Int? = runCatching {
+        val b = reader.readCoreMemory(addr, 2)
+        (b[0].toInt() and 0xFF) or ((b[1].toInt() and 0xFF) shl 8)
+    }.getOrNull()
+
+    private fun u16(v: Int) = byteArrayOf((v and 0xFF).toByte(), ((v shr 8) and 0xFF).toByte())
+
+    private fun endItemLocked(why: String) {
+        log("item use ended: $why")
+        itemWanted = 0
+        itemOn = null
+        holdTail = HOLD_TAIL_FRAMES
+    }
+
     private fun endSwitchLocked(why: String) {
         log("switch ended: $why")
         switchTarget = null
@@ -618,6 +787,7 @@ class BattleInputController(
         pendingMoveIndex = null
         awaitingTargetConfirm = false
         switchTarget = null
+        itemWanted = 0
         runPresses = 0
         currentBits = 0
         framesLeft = 0
@@ -916,6 +1086,13 @@ class BattleInputController(
         const val CURSOR_FRAMES = 3            // after each press, before reading the cursor again (it moves every 3)
         const val MAX_PICK_PRESSES = 8         // a 2x2 grid needs two; the rest re-press dropped ones
         const val MAX_CURSOR_PRESSES = 16      // steps the cursor took: two laps of six slots + CANCEL, then give up
+        const val BAG_POCKET = 6L              // BagStruct.pocket (FireRed)
+        const val BAG_ROW = 8L                 // BagStruct's selected row per pocket ("itemsAbove")
+        const val BAG_SCROLL = 0xEL            // BagStruct's scroll per pocket ("cursorPos")
+        const val ITEM_STEP_FRAMES = 6         // after a bag press, before reading it again
+        const val ITEM_REPRESS_FRAMES = 60     // still on the bag this long after USE's A: it was dropped (the bag's close takes ~30)
+        const val PARTY_MENU_BAG_ITEM = 0xCL   // struct PartyMenu.bagItem (FireRed)
+        const val MAX_ITEM_A_PRESSES = 3
         const val SUBMENU_FRAMES = 8           // the SHIFT / SUMMARY / CANCEL menu opening (takes A after 6 on FireRed, 2 on Emerald)
         const val CLOSE_TIMEOUT_FRAMES = 240
         const val GB_PRESS_FRAMES = 2          // Prism's party menu reads keys every other frame (headless)

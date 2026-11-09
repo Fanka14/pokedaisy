@@ -307,6 +307,14 @@ class EmulatorEngine(
         get() = battleInput.runAsksFirst
         set(v) { battleInput.runAsksFirst = v }
 
+    /** Where [battleUseItem] finds the battle bag; null = not supported for this game. */
+    var battleBagAddrs: BattleInputController.BagAddrs?
+        get() = battleInput.bagAddrs
+        set(v) { battleInput.bagAddrs = v }
+
+    /** Uses a bag item in the battle ([BattleInputController.useItem]). */
+    fun battleUseItem(itemId: Int, pocket: Int, personality: Long?): Boolean = battleInput.useItem(itemId, pocket, personality)
+
     /** Switch to the party mon with this personality. Call from the UI thread. */
     fun battleSwitchTo(personality: Long) = battleInput.switchTo(personality)
 
