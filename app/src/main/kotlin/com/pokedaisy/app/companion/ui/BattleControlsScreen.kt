@@ -485,6 +485,8 @@ internal fun MoveCard(
     modifier: Modifier = Modifier,
     /** Two lines (ONE-TAP MOVES, under the action buttons): the type joins the power / PP line. */
     compact: Boolean = false,
+    /** [compact]'s two lines centred in the card (BATTLE BAND's wide cards). */
+    centered: Boolean = false,
 ) {
     val enabled = mv != null && mv.pp > 0 && battleInput != null && !busy
     // Whole-card color keyed by move type (fill stays a constant pale card
@@ -518,11 +520,20 @@ internal fun MoveCard(
             // A short screen (the RG DS): the two lines, smaller - its cards are too short for three.
             val short = LocalShortCompanion.current
             val k = if (short) SHORT_MOVE_TEXT else 1f
-            if (compact || short) Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+            if (compact || short) Column(
+                modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+            ) {
                 // Name and PP, then type, power and the multipliers.
-                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.Bottom, modifier = if (centered) Modifier else Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (centered) Arrangement.spacedBy(16.dp * k) else Arrangement.Start,
+                ) {
                     // A long name (METAL CLAW) steps its size down to fit beside PP rather than being cut.
-                    FittedText(mv.name, AppColors.text, tight, maxSize = (32 * k).toInt(), minSize = (20 * k).toInt(), modifier = Modifier.weight(1f).padding(end = 10.dp * k))
+                    FittedText(
+                        mv.name, AppColors.text, tight, maxSize = (32 * k).toInt(), minSize = (20 * k).toInt(),
+                        modifier = if (centered) Modifier.weight(1f, fill = false) else Modifier.weight(1f).padding(end = 10.dp * k),
+                    )
                     Text(tr("PP {0}", mv.pp), color = AppColors.text, fontSize = 20.sp * k, style = tight, maxLines = 1)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp * k)) {

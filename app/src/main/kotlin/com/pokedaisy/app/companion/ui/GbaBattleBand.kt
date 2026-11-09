@@ -365,7 +365,7 @@ private fun MoveGrid2x2(moves: List<com.pokedaisy.app.companion.data.MoveView>, 
                             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().cursorFrame(i == cursor, u)) {
                                 val cardPx = with(LocalDensity.current) { maxHeight.toPx() }
                                 CompositionLocalProvider(LocalDensity provides Density(cardPx / MOVE_CARD_DP, 1f)) {
-                                    MoveCard(moves.getOrNull(i), if (enabled) battleInput else null, i, !enabled, showHints, Modifier.fillMaxSize(), compact = true)
+                                    MoveCard(moves.getOrNull(i), if (enabled) battleInput else null, i, !enabled, showHints, Modifier.fillMaxSize(), compact = true, centered = true)
                                 }
                             }
                         }
@@ -373,7 +373,7 @@ private fun MoveGrid2x2(moves: List<com.pokedaisy.app.companion.data.MoveView>, 
                 }
             }
             PlatinumButton(
-                fill = Color(0xFF6A7080), frame = Color(0xFF3C4250), modifier = Modifier.width(u * 44).fillMaxHeight(),
+                fill = Color(0xFF6A7080), frame = Color(0xFF3C4250), modifier = Modifier.width(u * 88).fillMaxHeight(),
                 enabled = enabled, pressesGame = true, outline = u, contentPadding = PaddingValues(u * 3), onClick = { battleInput?.back() },
             ) {
                 Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly, horizontalAlignment = Alignment.CenterHorizontally) {
