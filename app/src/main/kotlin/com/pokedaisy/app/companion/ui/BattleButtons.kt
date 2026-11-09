@@ -183,7 +183,7 @@ fun BattleButtons(
 @Composable
 internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, onClose: () -> Unit) {
     val n = snapshot.party.size.coerceAtLeast(1)
-    BattleList(1f, true, 8.dp, onClose, PARTY_LIST_W, n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f, dimCloses = false) { u2 ->
+    BattleList(1f, true, 2.dp, onClose, PARTY_LIST_W, n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f, dimCloses = false) { u2 ->
         BattlePartyList(
             snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
             u2 * PARTY_LIST_W, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose, keyCursor = BandParty.cursor.intValue,
@@ -266,7 +266,10 @@ private fun BattleList(
         val topPx = with(base) { top.toPx() }
         val hPx = with(base) { maxHeight.toPx() } - topPx - with(base) { 6.dp.toPx() }
         val wPx = with(base) { maxWidth.toPx() } * 0.55f
-        val k = floor(minOf(hPx / listH, wPx / listW)).toInt().coerceAtLeast(1)
+        // BATTLE BAND's list ([dimCloses] false) takes the whole height, its pixels not whole (the player's call: easier
+        // to read); BATTLE BUTTONS' keeps whole GBA pixels.
+        val fit = minOf(hPx / listH, wPx / listW)
+        val k = if (dimCloses) floor(fit).coerceAtLeast(1f) else fit.coerceAtLeast(1f)
         val scaled = remember(k, base.fontScale) { Density(k * 16f / 20f, base.fontScale) }
         // A tap on the list's empty parts does nothing (the dim around it closes it).
         val keep = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open, onClick = {})
