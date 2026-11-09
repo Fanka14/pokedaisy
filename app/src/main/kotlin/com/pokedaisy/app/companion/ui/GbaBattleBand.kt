@@ -281,12 +281,18 @@ fun GbaBattleBand(
             }
         }
         if (partyOpen && shownMode == MODE_ACTIONS) BattlePartyWindow(snapshot, battleInput, busy, showHints) { partyOpen = false }
-        // The HUD's POKé BALL in a wild battle, top right (clear of the touch pad's R / FF): a tap throws the pocket's
-        // first ball, as BAG > POKé BALL > USE would.
-        val ball = snapshot.items.firstOrNull { com.pokedaisy.app.companion.data.basePocket(it.pocket) == com.pokedaisy.app.companion.data.POCKET_POKE_BALLS && it.quantity > 0 }
-        if (ownBag && wild && ball != null && shownMode == MODE_ACTIONS && !partyOpen && !bagOpen) {
-            BallButton(ball.iconAsset, ball.quantity, enabled = !idle, Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = with(base) { (boxW * 0.13f).toDp() })) {
-                battleInput?.useItem(ball.itemId, BAG_BALLS, null)
+        // The HUD's POKé BALLs in a wild battle, a column in the top-right corner, one button a kind (the pocket's order):
+        // a tap throws that ball, as BAG > the ball > USE would.
+        val balls = snapshot.items.filter {
+            com.pokedaisy.app.companion.data.basePocket(it.pocket) == com.pokedaisy.app.companion.data.POCKET_POKE_BALLS && it.quantity > 0
+        }
+        if (ownBag && wild && balls.isNotEmpty() && shownMode == MODE_ACTIONS && !partyOpen && !bagOpen) {
+            Column(Modifier.align(Alignment.TopEnd).padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+                balls.forEach { ball ->
+                    BallButton(ball.iconAsset, ball.quantity, enabled = !idle, Modifier) {
+                        battleInput?.useItem(ball.itemId, BAG_BALLS, null)
+                    }
+                }
             }
         }
         if (bagOpen && shownMode == MODE_ACTIONS && battleInput != null) {
