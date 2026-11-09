@@ -158,6 +158,20 @@ object BandParty {
     }
 }
 
+/** BATTLE BAND's BAG (the HUD's): a controller's A on BAG opens it as a tap does, and its keys steer it ([HudBagPanel]'s
+ * keys; PokeDaisyActivity.bandPartyTakes). Set by [GbaBattleBand]. */
+object BandBag {
+    val open = androidx.compose.runtime.mutableStateOf(false)
+    @Volatile
+    var available = false
+    val keys = kotlinx.coroutines.flow.MutableSharedFlow<MenuKey>(extraBufferCapacity = 16)
+
+    fun close() {
+        open.value = false
+        available = false
+    }
+}
+
 /** What the band shows: nothing, the actions, the moves. */
 private const val MODE_NONE = 0
 private const val MODE_ACTIONS = 1
@@ -208,9 +222,12 @@ fun GbaBattleBand(
     // (With one Pokémon too: the list still shows it, OUT, and CANCEL.)
     val ownParty = battleInput?.canSwitch == true && snapshot.party.isNotEmpty()
     // BAG opens the HUD's BAG, its items used through the game's battle bag (BattleInput.useItem), where that works.
-    var bagOpen by remember { mutableStateOf(false) }
+    var bagOpen by BandBag.open
     LaunchedEffect(shown, state) { if (!shown || state != BATTLE_INPUT_ACTION_SELECT) bagOpen = false }
     val ownBag = battleInput?.canUseItems == true
+    androidx.compose.runtime.SideEffect {
+        BandBag.available = ownBag && shownMode == MODE_ACTIONS && picture != null && !busy && mode != MODE_NONE
+    }
     // A controller's A on POKéMON opens the list too, and its D-pad / A / B steer it (PokeDaisyActivity.bandPartyTakes).
     androidx.compose.runtime.SideEffect {
         BandParty.available = ownParty && shownMode == MODE_ACTIONS && picture != null && !busy && mode != MODE_NONE

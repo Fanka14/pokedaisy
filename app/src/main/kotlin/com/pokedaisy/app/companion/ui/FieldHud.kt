@@ -1275,6 +1275,9 @@ private fun panelPlace(dock: Boolean, top: Boolean, u: Dp, inset: PaddingValues)
 @Composable
 private fun HudBagPanel(
     snapshot: SnapshotView, m: GbaTextMetrics, itemUse: ItemUse?, dock: Boolean, top: Boolean, inset: PaddingValues, startPocket: Int, onClose: () -> Unit,
+    /** A controller's keys (BATTLE BAND's [BandBag]): the D-pad picks the item, L / R the pocket, A is USE (then the
+     * D-pad and A pick the Pokémon), B goes back. */
+    keys: kotlinx.coroutines.flow.Flow<MenuKey>? = null,
 ) {
     val u = m.u
     val small = rememberGbaTextMetrics(0.75f)
@@ -1289,7 +1292,62 @@ private fun HudBagPanel(
     // What the last USE did, for the item it was done with; the party pick a USE on a Pokémon opened.
     var message by remember { mutableStateOf<Pair<Int, String>?>(null) }
     var targets by remember(pickedId) { mutableStateOf<List<PartyTarget>?>(null) }
+    // The controller's Pokémon among [targets] (-1: none yet, as after a tap).
+    var targetCursor by remember(targets) { mutableStateOf(targets?.indexOfFirst { it.verdict == SlotVerdict.OK } ?: -1) }
     val (align, place) = panelPlace(dock, top, u, inset)
+    val use = picked?.let { item -> itemUse?.takeIf { it.canUse(item.itemId) && !it.picksMove(item.itemId) } }
+    // USE, from its button or a controller's A.
+    val doUse: () -> Unit = {
+        val item = picked
+        if (item != null && use != null) {
+            if (use.picksMon(item.itemId)) {
+                use.targets(item.itemId, give = false) { t ->
+                    if (t.result == ItemUseResult.USED) targets = t.targets
+                    else message = item.itemId to itemUseMessage(ItemUseOutcome(t.result))
+                }
+            } else use.use(item.itemId) { o -> message = item.itemId to itemUseMessage(o) }
+        }
+    }
+    val useOnTarget: (PartyTarget) -> Unit = { target ->
+        val item = picked
+        val mon = snapshot.party.getOrNull(target.slot)
+        if (item != null && mon != null && target.verdict == SlotVerdict.OK) {
+            targets = null
+            use?.useOn(item.itemId, target, 0) { o ->
+                message = item.itemId to itemUseMessage(o, mon = mon.name, item = bagItemName(item.itemId))
+            }
+        }
+    }
+    val current by androidx.compose.runtime.rememberUpdatedState(Triple(items, doUse, useOnTarget))
+    if (keys != null) LaunchedEffect(keys) {
+        keys.collect { k ->
+            val (list, useNow, useOn) = current
+            val t = targets
+            if (t != null) when (k) {
+                MenuKey.LEFT, MenuKey.UP -> targetCursor = if (targetCursor <= 0) t.lastIndex else targetCursor - 1
+                MenuKey.RIGHT, MenuKey.DOWN -> targetCursor = if (targetCursor >= t.lastIndex) 0 else targetCursor + 1
+                MenuKey.A -> t.getOrNull(targetCursor)?.let(useOn)
+                MenuKey.B -> targets = null
+                else -> Unit
+            } else {
+                val at = list.indexOfFirst { it.itemId == pickedId }.coerceAtLeast(0)
+                val step = if (noItemPictures) 1 else 6
+                when (k) {
+                    MenuKey.LEFT -> list.getOrNull((at - 1).coerceAtLeast(0))?.let { pickedId = it.itemId }
+                    MenuKey.RIGHT -> list.getOrNull((at + 1).coerceAtMost(list.lastIndex))?.let { pickedId = it.itemId }
+                    MenuKey.UP -> list.getOrNull((at - step).coerceAtLeast(0))?.let { pickedId = it.itemId }
+                    MenuKey.DOWN -> list.getOrNull((at + step).coerceAtMost(list.lastIndex))?.let { pickedId = it.itemId }
+                    MenuKey.L, MenuKey.R -> {
+                        val i = pockets.indexOf(pocket)
+                        if (pockets.isNotEmpty()) pocket = pockets[(i + if (k == MenuKey.R) 1 else pockets.size - 1) % pockets.size]
+                    }
+                    MenuKey.A -> useNow()
+                    MenuKey.B -> onClose()
+                    else -> Unit
+                }
+            }
+        }
+    }
     val c = ink
     HudPanelScrim(onClose, align) { window ->
         Column(place.width(u * 300).hudPanel(u).then(window).padding(u * 7), verticalArrangement = Arrangement.spacedBy(u * 4)) {
@@ -1347,20 +1405,12 @@ private fun HudBagPanel(
             }
             // The same height whatever the pocket or the item: the name and USE, then two lines for its text, a
             // USE's result or the party pick.
-            val use = picked?.let { item -> itemUse?.takeIf { it.canUse(item.itemId) && !it.picksMove(item.itemId) } }
             val iconSlot = hudIconSize(m)
             Column(Modifier.fillMaxWidth().background(c.cell, PixelRoundedShape(u * 3)).padding(u * 4), verticalArrangement = Arrangement.spacedBy(u * 2)) {
                 Row(Modifier.fillMaxWidth().height(maxOf(m.rowHeight, m.lineHeight + u * 8)), verticalAlignment = Alignment.CenterVertically) {
                     picked?.let { item ->
                         GbaText(bagItemName(item.itemId), c.accent, c.accentShadow, m, Modifier.weight(1f))
-                        if (use != null) OptionButton(tk("USE"), m, onClick = {
-                            if (use.picksMon(item.itemId)) {
-                                use.targets(item.itemId, give = false) { t ->
-                                    if (t.result == ItemUseResult.USED) targets = t.targets
-                                    else message = item.itemId to itemUseMessage(ItemUseOutcome(t.result))
-                                }
-                            } else use.use(item.itemId) { o -> message = item.itemId to itemUseMessage(o) }
-                        })
+                        if (use != null) OptionButton(tk("USE"), m, onClick = doUse)
                     }
                 }
                 Box(Modifier.fillMaxWidth().height(maxOf(small.lineHeight * 2, small.lineHeight + u * 2 + iconSlot))) {
@@ -1371,16 +1421,13 @@ private fun HudBagPanel(
                         t != null -> Column(verticalArrangement = Arrangement.spacedBy(u * 2)) {
                             GbaText(tr("Use on which POKéMON?"), c.text, c.shadow, small)
                             Row(horizontalArrangement = Arrangement.spacedBy(u * 3)) {
-                                t.forEach { target ->
-                                    val mon = snapshot.party.getOrNull(target.slot) ?: return@forEach
+                                t.forEachIndexed { i, target ->
+                                    val mon = snapshot.party.getOrNull(target.slot) ?: return@forEachIndexed
                                     val ok = target.verdict == SlotVerdict.OK
                                     Box(
-                                        Modifier.alpha(if (ok) 1f else 0.35f).soundClickable(enabled = ok) {
-                                            targets = null
-                                            use?.useOn(item.itemId, target, 0) { o ->
-                                                message = item.itemId to itemUseMessage(o, mon = mon.name, item = bagItemName(item.itemId))
-                                            }
-                                        },
+                                        Modifier.alpha(if (ok) 1f else 0.35f)
+                                            .then(if (keys != null && i == targetCursor) Modifier.background(c.cellOn, PixelRoundedShape(u * 3)) else Modifier)
+                                            .soundClickable(enabled = ok) { useOnTarget(target) },
                                     ) { HudMonIcon(mon, iconSlot, u) }
                                 }
                             }
@@ -1401,7 +1448,7 @@ private fun HudBagPanel(
 @Composable
 internal fun BattleBagPanel(snapshot: SnapshotView, itemUse: ItemUse, onClose: () -> Unit) {
     val m = rememberGbaTextMetrics(1f)
-    HudBagPanel(snapshot, m, itemUse, dock = false, top = true, inset = PaddingValues(), startPocket = POCKET_ITEMS, onClose = onClose)
+    HudBagPanel(snapshot, m, itemUse, dock = false, top = true, inset = PaddingValues(), startPocket = POCKET_ITEMS, onClose = onClose, keys = BandBag.keys)
 }
 
 /** WILD: this map's wild Pokémon by method - icon, name (??? until seen), levels, how often, a ball once caught. */

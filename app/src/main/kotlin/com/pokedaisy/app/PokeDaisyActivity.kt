@@ -3613,6 +3613,7 @@ class PokeDaisyActivity : Activity() {
                 if (!band || !buttons) {
                     com.pokedaisy.app.companion.ui.GameBandPixels.wanted = false
                     com.pokedaisy.app.companion.ui.BandParty.close()
+                    com.pokedaisy.app.companion.ui.BandBag.close()
                 }
             }
             androidx.compose.runtime.SideEffect {
@@ -3817,7 +3818,11 @@ class PokeDaisyActivity : Activity() {
         val band = com.pokedaisy.app.companion.ui.BandParty
         touchBandHeld = touchBandHeld and gba
         val key = menuKeyFor(newly)
-        if (band.open.value) {
+        val bag = com.pokedaisy.app.companion.ui.BandBag
+        if (bag.open.value) {
+            key?.let { bag.keys.tryEmit(it) }
+            touchBandHeld = touchBandHeld or gba
+        } else if (band.open.value) {
             key?.let { bandPartyKey(it, first = true) }
             touchBandHeld = touchBandHeld or gba
         } else if (key != null && bandPartyOpens(key)) touchBandHeld = touchBandHeld or gba
@@ -4194,6 +4199,16 @@ class PokeDaisyActivity : Activity() {
         val code = event.keyCode
         val down = event.action == KeyEvent.ACTION_DOWN
         val key = menuKeyFor(input.buttonFor(code) ?: 0) ?: return null
+        val bag = com.pokedaisy.app.companion.ui.BandBag
+        if (bag.open.value) {
+            if (!down) {
+                menuHeld.remove(code)
+                return true
+            }
+            if (event.repeatCount == 0) menuHeld.add(code) else if (code !in menuHeld) return true
+            if (event.repeatCount == 0 || key in BAND_REPEAT_KEYS) bag.keys.tryEmit(key)
+            return true
+        }
         if (!band.open.value) {
             if (!down || event.repeatCount != 0 || !bandPartyOpens(key)) return null
             menuHeld.add(code)
@@ -4208,10 +4223,17 @@ class PokeDaisyActivity : Activity() {
         return true
     }
 
-    /** A on POKéMON (the game's cursor there) with the band's list available: open it, as a tap does. True = opened. */
+    /** A on POKéMON / BAG (the game's cursor there) with the band's list / bag available: open it, as a tap does. True = opened. */
     private fun bandPartyOpens(key: MenuKey): Boolean {
         val band = com.pokedaisy.app.companion.ui.BandParty
-        if (key != MenuKey.A || !band.available || !::engine.isInitialized || engine.battleMenuCursor.value != 2) return false
+        if (key != MenuKey.A || !::engine.isInitialized) return false
+        val bag = com.pokedaisy.app.companion.ui.BandBag
+        if (engine.battleMenuCursor.value == 1 && bag.available) {
+            bag.open.value = true
+            bandHat = 0
+            return true
+        }
+        if (!band.available || engine.battleMenuCursor.value != 2) return false
         band.cursor.intValue = -1
         band.open.value = true
         bandHat = 0
@@ -4237,10 +4259,14 @@ class PokeDaisyActivity : Activity() {
         val bits = GbaInput.motionBits(event) ?: return false
         val pressed = bits and bandHat.inv()
         bandHat = bits
-        menuKeyFor(pressed)?.takeIf { it == MenuKey.UP || it == MenuKey.DOWN }?.let { bandPartyKey(it, first = true) }
+        val key = menuKeyFor(pressed)
+        if (com.pokedaisy.app.companion.ui.BandBag.open.value) key?.let { com.pokedaisy.app.companion.ui.BandBag.keys.tryEmit(it) }
+        else key?.takeIf { it == MenuKey.UP || it == MenuKey.DOWN }?.let { bandPartyKey(it, first = true) }
         return true
     }
     private var bandHat = 0
+    /** The band's BAG: the keys a held press repeats (the D-pad), the rest only on their first press. */
+    private val BAND_REPEAT_KEYS = setOf(MenuKey.UP, MenuKey.DOWN, MenuKey.LEFT, MenuKey.RIGHT)
 
     /** The window's key for a GBA button bit (a diagonal counts as its up / down). */
     private fun menuKeyFor(bits: Int): MenuKey? = when {
@@ -4364,7 +4390,7 @@ class PokeDaisyActivity : Activity() {
         if (bottomFocus.value && bottomMotion(event)) return true
         if (quickMenu.open && quickMotion(event)) return true
         if (dsBattleMenu.mode != 0 && dsBattleMotion(event)) return true
-        if (com.pokedaisy.app.companion.ui.BandParty.open.value && bandPartyMotion(event)) return true
+        if ((com.pokedaisy.app.companion.ui.BandParty.open.value || com.pokedaisy.app.companion.ui.BandBag.open.value) && bandPartyMotion(event)) return true
         if (coopOverlay.takesKeys && coopMotion(event)) return true
         if (event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
             // The right stick: WIDE's look-around (WideCamera). Most pads report it as Z / RZ, some as RX / RY.
