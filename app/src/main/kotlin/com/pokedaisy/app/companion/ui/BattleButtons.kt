@@ -183,11 +183,11 @@ fun BattleButtons(
 @Composable
 internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, onClose: () -> Unit) {
     val n = snapshot.party.size.coerceAtLeast(1)
-    // On a dark panel of its own (the player's call: the game behind made the rows hard to read).
+    // On a light panel of its own, the game's window cream (the player's call: the game behind made the rows hard to read).
     val listH = n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f
     BattleList(1f, true, 2.dp, onClose, PARTY_LIST_W + PANEL_PAD, listH + 2 * PANEL_PAD, dimCloses = false) { u2 ->
         Box(
-            Modifier.background(Color(0xE0202838), PixelRoundedShape(u2 * 4))
+            Modifier.background(Color(0xF0F8F8F0), PixelRoundedShape(u2 * 4))
                 .padding(start = u2 * PANEL_PAD, top = u2 * PANEL_PAD, bottom = u2 * PANEL_PAD),
         ) {
             BattlePartyList(
@@ -199,7 +199,7 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
 }
 
 /** BATTLE BAND's party panel's margin round the list (GBA pixels). */
-private const val PANEL_PAD = 5
+private const val PANEL_PAD = 9
 
 /** How far (GBA pixels) the buttons and the lists' rows run past the screen's right edge: their right border, corners and
  * bevel band out of sight. */
