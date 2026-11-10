@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -148,6 +149,8 @@ internal fun BattlePartyList(
     pickable: (Int) -> Boolean = { i -> party[i].let { !it.isEgg && it.hp > 0 } },
     /** A controller's row (BATTLE BAND's [BandParty]): the party, then CANCEL at party.size; -1 = the list's own cursor. */
     keyCursor: Int = -1,
+    /** BATTLE BAND: an INFO button left of each row opens that Pokémon's summary (party index); null = none. */
+    onSummary: ((Int) -> Unit)? = null,
 ) {
     CompanionBackHandler(enabled = !busy, onBack = onBack)
     val callback = onPick != null
@@ -164,14 +167,29 @@ internal fun BattlePartyList(
                 else -> null
             }
             val pick = enabled && (if (callback) pickable(i) else canSendIn(mon, active))
-            Box(
-                Modifier.focusStart(i == cursor).fillMaxWidth().height(rowH)
-                    .slotClickable(sound = callback, enabled = pick) { if (onPick != null) onPick(i) else battleInput?.switchTo(mon.personality) },
-            ) { PartyListRow(palette, mon, selected = i == cursor, u, edge, tag) }
+            Row(Modifier.fillMaxWidth().height(rowH), horizontalArrangement = Arrangement.spacedBy(u * 2), verticalAlignment = Alignment.CenterVertically) {
+                if (onSummary != null) SummaryButton(rowH, u) { onSummary(i) }
+                Box(
+                    Modifier.focusStart(i == cursor).weight(1f).fillMaxHeight()
+                        .slotClickable(sound = callback, enabled = pick) { if (onPick != null) onPick(i) else battleInput?.switchTo(mon.personality) },
+                ) { PartyListRow(palette, mon, selected = i == cursor, u, edge, tag) }
+            }
         }
         ListCancel(!busy, rowH * 0.7f, edge, onBack, selected = keyCursor == party.size)
     }
 }
+
+/** A row's INFO (BATTLE BAND's party list): the Pokémon's summary. */
+@Composable
+private fun SummaryButton(h: Dp, u: Dp, onClick: () -> Unit) {
+    PlatinumButton(
+        fill = Color(0xFF6A7080), frame = Color(0xFF3C4250), modifier = Modifier.width(u * SUMMARY_BUTTON_W).height(h * 0.8f),
+        outline = u, contentPadding = PaddingValues(u * 2), onClick = onClick,
+    ) { PixelArt(PixelIcons.info, mapOf('1' to Color.White), Modifier.size(u * 14)) }
+}
+
+/** [SummaryButton]'s width (GBA pixels). */
+internal const val SUMMARY_BUTTON_W = 22
 
 @Composable
 private fun ListCancel(enabled: Boolean, h: Dp, edge: Dp, onClick: () -> Unit, selected: Boolean = false) {

@@ -1451,6 +1451,12 @@ internal fun BattleBagPanel(snapshot: SnapshotView, itemUse: ItemUse, onClose: (
     HudBagPanel(snapshot, m, itemUse, dock = false, top = true, inset = PaddingValues(), startPocket = POCKET_ITEMS, onClose = onClose, keys = BandBag.keys)
 }
 
+/** The HUD's summary over a battle, for BATTLE BAND's party list (its INFO buttons). */
+@Composable
+internal fun BattleSummaryPanel(snapshot: SnapshotView, index: Int, onIndex: (Int) -> Unit, onClose: () -> Unit) {
+    HudSummaryPanel(snapshot, index, onIndex, rememberGbaTextMetrics(1f), null, onClose)
+}
+
 /** WILD: this map's wild Pokémon by method - icon, name (??? until seen), levels, how often, a ball once caught. */
 @Composable
 private fun HudWildPanel(snapshot: SnapshotView, wild: List<HudWild>, m: GbaTextMetrics, dock: Boolean, top: Boolean, inset: PaddingValues, onClose: () -> Unit) {
