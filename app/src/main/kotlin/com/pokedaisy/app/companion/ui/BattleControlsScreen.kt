@@ -487,6 +487,8 @@ internal fun MoveCard(
     compact: Boolean = false,
     /** [compact]'s two lines centred in the card (BATTLE BAND's wide cards). */
     centered: Boolean = false,
+    /** The damage it would do, as a share of the foe's HP ("18-22 %"), after the verdict; null = none. */
+    estimate: String? = null,
 ) {
     val enabled = mv != null && mv.pp > 0 && battleInput != null && !busy
     // Whole-card color keyed by move type (fill stays a constant pale card
@@ -540,6 +542,7 @@ internal fun MoveCard(
                     TypeBadge(mv.type, fontSize = 16.sp * k)
                     Text(tr("PWR {0}", powerLabel(mv.power)), color = AppColors.muted, fontSize = 22.sp * k, style = tight, maxLines = 1)
                     if (showHints) mv.vs.forEach { v -> MultiplierChip(v.label, v.pct, fontSize = 16.sp * k) }
+                    if (estimate != null) Text(estimate, color = AppColors.text, fontSize = 22.sp * k, style = tight, maxLines = 1)
                 }
             } else Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
                 Text(

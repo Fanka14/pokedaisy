@@ -299,7 +299,7 @@ fun GbaBattleBand(
             }
         } else {
             Area(gap, boxW - gap) {
-                MoveGrid2x2(moves, battleInput, idle, showHints, innerH)
+                MoveGrid2x2(moves, battleInput, idle, showHints, innerH, moveEstimates(snapshot))
             }
         }
         if (partyOpen && shownMode == MODE_ACTIONS) BattlePartyWindow(snapshot, battleInput, busy, showHints) { partyOpen = false }
@@ -310,8 +310,9 @@ fun GbaBattleBand(
         }
         if (ownBag && wild && balls.isNotEmpty() && shownMode == MODE_ACTIONS && !partyOpen && !bagOpen) {
             Column(Modifier.align(Alignment.TopEnd).padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+                val chance = rememberCatchChance(snapshot)
                 balls.forEach { ball ->
-                    BallButton(ball.iconAsset, ball.quantity, enabled = !idle, Modifier) {
+                    BallButton(ball.iconAsset, ball.quantity, chance(ball.itemId), enabled = !idle, Modifier) {
                         battleInput?.useItem(ball.itemId, BAG_BALLS, null)
                     }
                 }
@@ -395,7 +396,11 @@ private fun ActionGrid(
 
 /** The four moves 2 x 2 in the move cards' look (name, PP, type, power, BATTLE HINTS' verdict), BACK at the end. */
 @Composable
-private fun MoveGrid2x2(moves: List<com.pokedaisy.app.companion.data.MoveView>, battleInput: BattleInput?, idle: Boolean, showHints: Boolean, h: Float) {
+private fun MoveGrid2x2(
+    moves: List<com.pokedaisy.app.companion.data.MoveView>, battleInput: BattleInput?, idle: Boolean, showHints: Boolean, h: Float,
+    /** Each move's damage on the foe ("18-22 %"), by index; missing = none. */
+    estimates: List<String?> = emptyList(),
+) {
     val base = LocalDensity.current
     // A move row is 34 GBA pixels of the list's art: two rows and a gap in the band's height.
     val k = (h / (2 * 34f + 3f)).toInt().coerceAtLeast(1)
@@ -416,7 +421,10 @@ private fun MoveGrid2x2(moves: List<com.pokedaisy.app.companion.data.MoveView>, 
                             BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().cursorFrame(i == cursor, u)) {
                                 val cardPx = with(LocalDensity.current) { maxHeight.toPx() }
                                 CompositionLocalProvider(LocalDensity provides Density(cardPx / MOVE_CARD_DP, 1f)) {
-                                    MoveCard(moves.getOrNull(i), if (enabled) battleInput else null, i, !enabled, showHints, Modifier.fillMaxSize(), compact = true, centered = true)
+                                    MoveCard(
+                                        moves.getOrNull(i), if (enabled) battleInput else null, i, !enabled, showHints, Modifier.fillMaxSize(),
+                                        compact = true, centered = true, estimate = estimates.getOrNull(i),
+                                    )
                                 }
                             }
                         }
@@ -527,15 +535,19 @@ private class BandItemUse(
 
 /** BATTLE BAND's POKé BALL: the ball's picture (the HUD's) and how many are left. */
 @Composable
-private fun BallButton(icon: String?, count: Int, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun BallButton(icon: String?, count: Int, chance: Int?, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val m = rememberGbaTextMetrics(1.25f)
     val u = rememberGbaTextMetrics(1f).u
     PlatinumButton(
-        fill = Color(0xFFF8F8F0), frame = Color(0xFFE83028), modifier = modifier.height(u * 37.5f), enabled = enabled, pressesGame = true,
+        fill = Color(0xFFF8F8F0), frame = Color(0xFFE83028), modifier = modifier.height(u * 46f), enabled = enabled, pressesGame = true,
         outline = u, contentPadding = PaddingValues(horizontal = u * 7.5f, vertical = u * 2.5f), onClick = onClick,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(u * 3.75f)) {
-            if (icon != null) HudItemIcon(icon, u * 27.5f, Modifier) else PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 20))
+            // The chance to catch the foe with it now, under its picture (the player's call: nothing else added).
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (icon != null) HudItemIcon(icon, u * 27.5f, Modifier) else PixelArt(PixelIcons.pokeBall, POKE_BALL, Modifier.size(u * 20))
+                if (chance != null) GbaText("$chance%", Color(0xFF383848), Color(0xFFD0D0C8), rememberGbaTextMetrics(0.75f))
+            }
             GbaText("x$count", Color(0xFF383848), Color(0xFFD0D0C8), m)
         }
     }
@@ -572,6 +584,43 @@ private fun StatStagesPanel(snapshot: SnapshotView, modifier: Modifier) {
 
 /** [com.pokedaisy.app.companion.data.MonView.statStages]' order: Attack, Defense, Speed, Sp. Atk, Sp. Def, accuracy, evasion. */
 private val STAGE_LABELS = listOf("ATTACK", "DEFENSE", "SPEED", "SP. ATK", "SP. DEF", "ACCURACY", "EVASION")
+
+/** Each of the player's battler's moves: its damage on the foe as a share of the foe's HP, lowest to highest roll
+ * ([com.pokedaisy.app.companion.data.BattleMath.damageRange]); null where it can't be told (no power, stats unknown). */
+private fun moveEstimates(snapshot: SnapshotView): List<String?> {
+    val me = snapshot.battlePlayer.getOrNull(0) ?: return emptyList()
+    val foe = snapshot.battleOpponent.getOrNull(0) ?: return emptyList()
+    val mine = me.battleStats ?: return emptyList()
+    val theirs = foe.battleStats ?: return emptyList()
+    return me.moves.take(4).map { mv ->
+        val type = com.pokedaisy.app.companion.data.typeIdOf(mv.type)
+        val phys = com.pokedaisy.app.companion.data.BattleMath.physical(type)
+        // battleStats: Attack, Defense, Speed, Sp. Atk, Sp. Def; statStages the same, then accuracy, evasion.
+        val atk = if (phys) 0 else 3
+        val def = if (phys) 1 else 4
+        com.pokedaisy.app.companion.data.BattleMath.damageRange(
+            me.level, mv.power, mine.getOrElse(atk) { 0 }, theirs.getOrElse(def) { 0 },
+            me.statStages?.getOrNull(atk) ?: 0, foe.statStages?.getOrNull(def) ?: 0,
+            stab = mv.type in me.types, effectPct = mv.vs.firstOrNull()?.pct ?: 100, foeMaxHp = foe.maxHp,
+        )?.let { r -> if (r.first == r.last) "${r.first}%" else "${r.first}-${r.last}%" }
+    }
+}
+
+/** The foe's catch chance for a ball (an item id: FireRed's balls are 1..12), from its species' catch rate in the ROM. */
+@Composable
+private fun rememberCatchChance(snapshot: SnapshotView): (Int) -> Int? {
+    val foe = snapshot.battleOpponent.getOrNull(0) ?: return { null }
+    val tables = snapshot.pokedex?.tables
+    val rate = remember(foe.species, tables) {
+        tables?.let { t ->
+            runCatching {
+                com.pokedaisy.app.companion.data.PokedexSource.entry(t, com.pokedaisy.app.companion.data.PokedexSource.nationalOf(t, foe.species))?.catchRate
+            }.getOrNull()
+        }
+    } ?: return { null }
+    val types = foe.types.map { com.pokedaisy.app.companion.data.typeIdOf(it) }
+    return { ball -> com.pokedaisy.app.companion.data.BattleMath.catchChance(ball, rate, foe.hp, foe.maxHp, foe.status, types, foe.level) }
+}
 
 /** FireRed's battle bag pockets (gBagMenuState.pocket). */
 private const val BAG_ITEMS = 0
