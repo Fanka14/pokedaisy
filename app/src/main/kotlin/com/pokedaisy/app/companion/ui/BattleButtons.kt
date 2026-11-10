@@ -188,7 +188,9 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
     // On a light panel of its own, the game's window cream (the player's call: the game behind made the rows hard to read).
     val listH = n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f
     val listW = PARTY_LIST_W + SUMMARY_BUTTON_W + 2
-    BattleList(1f, summary == null, 2.dp, onClose, listW + PANEL_PAD, listH + 2 * PANEL_PAD_V, dimCloses = false) { u2 ->
+    // The summary alone while it's up: the list behind it made both hard to read.
+    summary?.let { i -> return BattleSummaryPanel(snapshot, i, { summary = it }) { summary = null } }
+    BattleList(1f, true, 2.dp, onClose, listW + PANEL_PAD, listH + 2 * PANEL_PAD_V, dimCloses = false) { u2 ->
         Box(
             Modifier.background(Color(0xF0F8F8F0), PixelRoundedShape(u2 * 4))
                 .padding(start = u2 * PANEL_PAD, top = u2 * PANEL_PAD_V, bottom = u2 * PANEL_PAD_V),
@@ -200,7 +202,6 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
             )
         }
     }
-    summary?.let { i -> BattleSummaryPanel(snapshot, i, { summary = it }) { summary = null } }
 }
 
 /** BATTLE BAND's party panel's margin left of the list and above / under it (GBA pixels): the height is the screen's, so
