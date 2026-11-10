@@ -185,11 +185,16 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
     val n = snapshot.party.size.coerceAtLeast(1)
     // A row's INFO opens the Pokémon's summary over the list; its BACK comes back to the list.
     var summary by remember { mutableStateOf<Int?>(null) }
+    // The open summary follows the list's row: a controller's UP / DOWN shows the next Pokémon's (CANCEL keeps the last).
+    val row = BandParty.cursor.intValue
+    LaunchedEffect(row) { if (summary != null && row in snapshot.party.indices) summary = row }
     // On a light panel of its own, the game's window cream (the player's call: the game behind made the rows hard to read).
     val listH = n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f
     val listW = PARTY_LIST_W + SUMMARY_BUTTON_W + 2
     // The summary opens left of the list, beside it (the player's call), without its own column of Pokémon: the list is it.
-    val side: (@Composable () -> Unit)? = summary?.let { i -> { BattleSummarySide(snapshot, i, { summary = it }) { summary = null } } }
+    val side: (@Composable () -> Unit)? = summary?.let { i ->
+        { BattleSummarySide(snapshot, i, { summary = it; BandParty.cursor.intValue = it }) { summary = null } }
+    }
     BattleList(1f, summary == null, 2.dp, onClose, listW + PANEL_PAD, listH + 2 * PANEL_PAD_V, dimCloses = false, side = side) { u2 ->
         Box(
             Modifier.background(Color(0xF0F8F8F0), PixelRoundedShape(u2 * 4))
@@ -198,7 +203,7 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
             BattlePartyList(
                 snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
                 u2 * listW, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose, keyCursor = BandParty.cursor.intValue,
-                onSummary = { summary = it },
+                onSummary = { summary = it; BandParty.cursor.intValue = it },
             )
         }
     }
