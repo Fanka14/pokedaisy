@@ -587,9 +587,12 @@ private val STAGE_LABELS = listOf("ATTACK", "DEFENSE", "SPEED", "SP. ATK", "SP. 
 
 /** Each of the player's battler's moves: its damage on the foe as a share of the foe's HP, lowest to highest roll
  * ([com.pokedaisy.app.companion.data.BattleMath.damageRange]); null where it can't be told (no power, stats unknown). */
-private fun moveEstimates(snapshot: SnapshotView): List<String?> {
-    val me = snapshot.battlePlayer.getOrNull(0) ?: return emptyList()
-    val foe = snapshot.battleOpponent.getOrNull(0) ?: return emptyList()
+private fun moveEstimates(snapshot: SnapshotView): List<String?> =
+    moveEstimates(snapshot.battlePlayer.getOrNull(0), snapshot.battleOpponent.getOrNull(0))
+
+/** [me]'s moves' damage on [foe] (see the one above); the companion's move grid shows them too. */
+internal fun moveEstimates(me: com.pokedaisy.app.companion.data.MonView?, foe: com.pokedaisy.app.companion.data.MonView?): List<String?> {
+    if (me == null || foe == null) return emptyList()
     val mine = me.battleStats ?: return emptyList()
     val theirs = foe.battleStats ?: return emptyList()
     return me.moves.take(4).map { mv ->

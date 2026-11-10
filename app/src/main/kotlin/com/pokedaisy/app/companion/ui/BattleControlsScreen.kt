@@ -168,14 +168,14 @@ fun BattleControlsScreen(
                 when (state) {
                     BATTLE_INPUT_MOVE_SELECT -> MoveGrid(
                         activeMon?.moves.orEmpty(), battleInput, busy, showHints,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize(), estimates = moveEstimates(activeMon, foe),
                     )
                     BATTLE_INPUT_ACTION_SELECT -> if (choosingMon) {
                         PartyPicker(party, foe, active, battleInput, busy, showHints, onBack = { choosingMon = false })
                     } else if (choosingMove) {
                         MoveGrid(
                             activeMon?.moves.orEmpty(), battleInput, busy, showHints,
-                            modifier = Modifier.fillMaxSize(), onCancel = { choosingMove = false },
+                            modifier = Modifier.fillMaxSize(), onCancel = { choosingMove = false }, estimates = moveEstimates(activeMon, foe),
                         )
                     } else {
                         ActionButtons(
@@ -387,6 +387,8 @@ internal fun MoveGrid(
     onCancel: (() -> Unit)? = null,
     /** ONE-TAP MOVES' two-line cards, names fitted (BATTLE BUTTONS' smaller window). */
     compact: Boolean = false,
+    /** Each move's damage on the foe ("18-22%"), by index. */
+    estimates: List<String?> = emptyList(),
 ) {
     CompanionBackHandler(enabled = battleInput != null && !busy) { onCancel?.invoke() ?: battleInput?.back() }
     if (gen1Buttons) return Gen1MoveList(moves, battleInput, busy, showHints, modifier, onCancel)
@@ -399,7 +401,7 @@ internal fun MoveGrid(
                 for (col in 0..1) {
                     val idx = row * 2 + col
                     // The D-pad (the companion's window) starts on the first move.
-                    MoveCard(moves.getOrNull(idx), battleInput, idx, busy, showHints, modifier = Modifier.focusStart(idx == 0).weight(1f).fillMaxHeight(), compact = compact)
+                    MoveCard(moves.getOrNull(idx), battleInput, idx, busy, showHints, modifier = Modifier.focusStart(idx == 0).weight(1f).fillMaxHeight(), compact = compact, estimate = estimates.getOrNull(idx))
                 }
             }
         }
@@ -554,6 +556,7 @@ internal fun MoveCard(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
                         Text(tr("PWR {0}", powerLabel(mv.power)), color = AppColors.muted, fontSize = 24.sp, style = tight)
                         if (showHints) mv.vs.forEach { v -> MultiplierChip(v.label, v.pct, fontSize = 16.sp) }
+                        if (estimate != null) Text(estimate, color = AppColors.text, fontSize = 24.sp, style = tight, maxLines = 1)
                     }
                     Text(tr("PP {0}", mv.pp), color = AppColors.text, fontSize = 28.sp, style = tight)
                 }
