@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.displayCutout
@@ -1275,7 +1275,7 @@ private fun panelPlace(dock: Boolean, top: Boolean, u: Dp, inset: PaddingValues)
  * where the game lets the app use it (FieldItems): straight away, or on the Pokémon picked from the party under it.
  * Items used on a move (PP) are left to the BAG tab.
  */
-@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HudBagPanel(
     snapshot: SnapshotView, m: GbaTextMetrics, itemUse: ItemUse?, dock: Boolean, top: Boolean, inset: PaddingValues, startPocket: Int, onClose: () -> Unit,
@@ -1324,9 +1324,23 @@ private fun HudBagPanel(
     }
     val current by androidx.compose.runtime.rememberUpdatedState(Triple(items, doUse, useOnTarget))
     val allItems by androidx.compose.runtime.rememberUpdatedState(snapshot.items)
-    // The picked item kept in view as a controller walks the pocket (two and a half rows show).
-    val pickedView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
-    LaunchedEffect(pickedId, pocket) { if (keys != null) runCatching { pickedView.bringIntoView() } }
+    // The picked item kept in view as a controller walks the pocket (two and a half rows show): the list scrolled to its row.
+    val listScroll = rememberScrollState()
+    val density = LocalDensity.current
+    LaunchedEffect(pickedId, pocket) {
+        if (keys == null) return@LaunchedEffect
+        val at = items.indexOfFirst { it.itemId == pickedId }
+        if (at < 0) return@LaunchedEffect
+        with(density) {
+            val rowPx = if (noItemPictures) (m.lineHeight + u * 7).toPx() else (u * 48).toPx()
+            val viewPx = (u * (46 * 2 + 2 * 2 + 23)).toPx()
+            val top = (at / (if (noItemPictures) 1 else 6)) * rowPx
+            when {
+                top < listScroll.value -> listScroll.animateScrollTo(top.toInt())
+                top + rowPx > listScroll.value + viewPx -> listScroll.animateScrollTo((top + rowPx - viewPx).toInt())
+            }
+        }
+    }
     if (keys != null) LaunchedEffect(keys) {
         keys.collect { k ->
             val (list, useNow, useOn) = current
@@ -1382,11 +1396,11 @@ private fun HudBagPanel(
             if (noItemPictures) {
                 // A game with no item pictures (the Game Boy games): the pocket as a list, as their own PACK shows it -
                 // each item's name and count, the picked one's row lit.
-                Column(Modifier.height(listHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(u)) {
+                Column(Modifier.height(listHeight).verticalScroll(listScroll), verticalArrangement = Arrangement.spacedBy(u)) {
                     items.forEach { item ->
                         Row(
                             Modifier.fillMaxWidth()
-                                .then(if (item.itemId == pickedId) Modifier.bringIntoViewRequester(pickedView) else Modifier)
+                                .then(if (keys != null && item.itemId == pickedId) Modifier.border(u, Color.White, PixelRoundedShape(u * 3)) else Modifier)
                                 .background(if (item.itemId == pickedId) c.cellOn else c.cell, PixelRoundedShape(u * 3))
                                 .soundClickable { pickedId = item.itemId }
                                 .padding(horizontal = u * 5, vertical = u * 3),
@@ -1399,13 +1413,13 @@ private fun HudBagPanel(
                         }
                     }
                 }
-            } else Column(Modifier.height(listHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(u * 2)) {
+            } else Column(Modifier.height(listHeight).verticalScroll(listScroll), verticalArrangement = Arrangement.spacedBy(u * 2)) {
                 items.chunked(6).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(u * 2)) {
                         row.forEach { item ->
                             Box(
                                 Modifier.size(u * 46)
-                                    .then(if (item.itemId == pickedId) Modifier.bringIntoViewRequester(pickedView) else Modifier)
+                                    .then(if (keys != null && item.itemId == pickedId) Modifier.border(u, Color.White, PixelRoundedShape(u * 3)) else Modifier)
                                     .background(if (item.itemId == pickedId) c.cellOn else c.cell, PixelRoundedShape(u * 3))
                                     .soundClickable { pickedId = item.itemId },
                             ) {
