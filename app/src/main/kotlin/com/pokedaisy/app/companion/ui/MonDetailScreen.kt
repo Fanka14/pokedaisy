@@ -102,6 +102,8 @@ fun MonDetailScreen(
     onWithdraw: (() -> Unit)? = null,
     /** Open with TRADE EVOLUTIONS' question up (screenshot tests). */
     initialEvolveAsk: Boolean = false,
+    /** The column of party Pokémon right of the summary; false (BATTLE BAND: its party list is beside it) = BACK alone. */
+    partyColumn: Boolean = true,
 ) {
     val m = rememberGbaTextMetrics()
     val small = rememberGbaTextMetrics(1f)
@@ -206,7 +208,8 @@ fun MonDetailScreen(
         }
     }
     Column(Modifier.width(SummaryButtonSize).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PartyColumn(party, index, onIndexChange, small, Modifier.weight(1f).fillMaxWidth())
+        if (partyColumn) PartyColumn(party, index, onIndexChange, small, Modifier.weight(1f).fillMaxWidth())
+        else Spacer(Modifier.weight(1f))
         BackNavButton(onBack, SummaryButtonSize)
     }
     }

@@ -1451,10 +1451,21 @@ internal fun BattleBagPanel(snapshot: SnapshotView, itemUse: ItemUse, onClose: (
     HudBagPanel(snapshot, m, itemUse, dock = false, top = true, inset = PaddingValues(), startPocket = POCKET_ITEMS, onClose = onClose, keys = BandBag.keys)
 }
 
-/** The HUD's summary over a battle, for BATTLE BAND's party list (its INFO buttons). */
+/** A Pokémon's summary beside BATTLE BAND's party list (its INFO buttons): in the windows' look, without its own column of
+ * Pokémon (the list beside it is that), filling the room it's given. */
 @Composable
-internal fun BattleSummaryPanel(snapshot: SnapshotView, index: Int, onIndex: (Int) -> Unit, onClose: () -> Unit) {
-    HudSummaryPanel(snapshot, index, onIndex, rememberGbaTextMetrics(1f), null, onClose)
+internal fun BattleSummarySide(snapshot: SnapshotView, index: Int, onIndex: (Int) -> Unit, onClose: () -> Unit) {
+    val u = rememberGbaTextMetrics(1f).u
+    // Taps on it stay its own (the game's touch pad is under the band's view).
+    val keep = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+    Box(Modifier.fillMaxSize().padding(u * 4).then(keep)) {
+        CompositionLocalProvider(LocalOptionLook provides HudWindowLook) {
+            MonDetailScreen(
+                snapshot.party, index.coerceIn(0, (snapshot.party.size - 1).coerceAtLeast(0)),
+                onIndexChange = onIndex, onBack = onClose, partyColumn = false,
+            )
+        }
+    }
 }
 
 /** WILD: this map's wild Pokémon by method - icon, name (??? until seen), levels, how often, a ball once caught. */

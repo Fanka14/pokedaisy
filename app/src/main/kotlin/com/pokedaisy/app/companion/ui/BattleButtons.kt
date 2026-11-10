@@ -188,9 +188,9 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
     // On a light panel of its own, the game's window cream (the player's call: the game behind made the rows hard to read).
     val listH = n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f
     val listW = PARTY_LIST_W + SUMMARY_BUTTON_W + 2
-    // The summary alone while it's up: the list behind it made both hard to read.
-    summary?.let { i -> return BattleSummaryPanel(snapshot, i, { summary = it }) { summary = null } }
-    BattleList(1f, true, 2.dp, onClose, listW + PANEL_PAD, listH + 2 * PANEL_PAD_V, dimCloses = false) { u2 ->
+    // The summary opens left of the list, beside it (the player's call), without its own column of Pokémon: the list is it.
+    val side: (@Composable () -> Unit)? = summary?.let { i -> { BattleSummarySide(snapshot, i, { summary = it }) { summary = null } } }
+    BattleList(1f, summary == null, 2.dp, onClose, listW + PANEL_PAD, listH + 2 * PANEL_PAD_V, dimCloses = false, side = side) { u2 ->
         Box(
             Modifier.background(Color(0xF0F8F8F0), PixelRoundedShape(u2 * 4))
                 .padding(start = u2 * PANEL_PAD, top = u2 * PANEL_PAD_V, bottom = u2 * PANEL_PAD_V),
@@ -270,6 +270,8 @@ private fun BattleList(
     shown: Float, open: Boolean, top: Dp, onClose: () -> Unit, listW: Int, listH: Float,
     /** A tap on the dim closes the list; false (BATTLE BAND): taps there reach the touch pad under it, whose D-pad steers the list. */
     dimCloses: Boolean = true,
+    /** Drawn left of the list in the room it leaves, at the screen's own density (BATTLE BAND: a Pokémon's summary). */
+    side: (@Composable () -> Unit)? = null,
     content: @Composable (u: Dp) -> Unit,
 ) {
     val base = LocalDensity.current
@@ -293,10 +295,15 @@ private fun BattleList(
         val keep = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open, onClick = {})
         CompositionLocalProvider(LocalDensity provides scaled) {
             val u = rememberGbaTextMetrics(1f).u
-            Box(
-                Modifier.align(Alignment.TopEnd).padding(top = with(scaled) { topPx.toDp() })
-                    .offset(x = u * EDGE).graphicsLayer { translationX = (1f - shown) * size.width }.then(keep),
-            ) { content(u) }
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    if (side != null) CompositionLocalProvider(LocalDensity provides base) { side() }
+                }
+                Box(
+                    Modifier.padding(top = with(scaled) { topPx.toDp() })
+                        .offset(x = u * EDGE).graphicsLayer { translationX = (1f - shown) * size.width }.then(keep),
+                ) { content(u) }
+            }
         }
     }
 }
