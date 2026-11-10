@@ -2,6 +2,11 @@ package com.pokedaisy.app.companion.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -177,6 +182,18 @@ object BandBag {
     }
 }
 
+/** BATTLE BAND's move card ([MoveInfoCard]): which move's is up (a long press on it, or L / R on the game's cursor:
+ * PokeDaisyActivity.bandPartyTakes). [available]: the moves are up. */
+object BandMoves {
+    val info = androidx.compose.runtime.mutableStateOf<Int?>(null)
+    @Volatile
+    var available = false
+
+    fun toggle(i: Int) {
+        info.value = if (info.value == i) null else i
+    }
+}
+
 /** What the band shows: nothing, the actions, the moves. */
 private const val MODE_NONE = 0
 private const val MODE_ACTIONS = 1
@@ -227,6 +244,7 @@ fun GbaBattleBand(
     // (With one Pokémon too: the list still shows it, OUT, and CANCEL.)
     val ownParty = battleInput?.canSwitch == true && snapshot.party.isNotEmpty()
     // BAG opens the HUD's BAG, its items used through the game's battle bag (BattleInput.useItem), where that works.
+    androidx.compose.runtime.SideEffect { BandMoves.available = shownMode == MODE_MOVES }
     var bagOpen by BandBag.open
     LaunchedEffect(shown, state) { if (!shown || state != BATTLE_INPUT_ACTION_SELECT) bagOpen = false }
     val ownBag = battleInput?.canUseItems == true
@@ -320,6 +338,19 @@ fun GbaBattleBand(
         }
         // The stat stages the game never shows (Attack +1, Accuracy -1...), both sides, top left (the player's call).
         if (!partyOpen && !bagOpen) StatStagesPanel(snapshot, Modifier.align(Alignment.TopStart).padding(8.dp))
+        // What lasts several turns (weather, screens, confusion...), top centre: clear of the stat stages, the balls and
+        // the foe's box under it.
+        if (!partyOpen && !bagOpen) EffectsChips(battleInput, with(base) { (picture.top + picture.height * 0.085f).toDp() })
+        // A move's own card (accuracy, category, effect) above the band: a long press on it, or L / R on the game's cursor.
+        val info = BandMoves.info.value
+        LaunchedEffect(shownMode) { if (shownMode != MODE_MOVES) BandMoves.info.value = null }
+        if (shownMode == MODE_MOVES && info != null) moves.getOrNull(info)?.let { mv ->
+            with(base) {
+                Box(Modifier.fillMaxWidth().height(top.toDp()), contentAlignment = Alignment.BottomCenter) {
+                    MoveInfoCard(mv, Modifier.padding(bottom = 6.dp))
+                }
+            }
+        }
         if (bagOpen && shownMode == MODE_ACTIONS && battleInput != null) {
             val use = remember(battleInput, snapshot) { BandItemUse(snapshot, battleInput) { bagOpen = false } }
             BattleBagPanel(snapshot, use) { bagOpen = false }
@@ -418,7 +449,7 @@ private fun MoveGrid2x2(
                             val i = row * 2 + col
                             // The companion's own move card (type colours, the verdict chips), drawn at the size it has on
                             // the companion's screen: its text is in sp, so a density that makes the card MOVE_CARD_DP tall.
-                            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().cursorFrame(i == cursor, u)) {
+                            BoxWithConstraints(Modifier.weight(1f).fillMaxHeight().cursorFrame(i == cursor, u).longPress { BandMoves.toggle(i) }) {
                                 val cardPx = with(LocalDensity.current) { maxHeight.toPx() }
                                 CompositionLocalProvider(LocalDensity provides Density(cardPx / MOVE_CARD_DP, 1f)) {
                                     MoveCard(
@@ -625,6 +656,150 @@ private fun rememberCatchChance(snapshot: SnapshotView): (Int) -> Int? {
     } ?: return { null }
     val types = foe.types.map { com.pokedaisy.app.companion.data.typeIdOf(it) }
     return { ball -> com.pokedaisy.app.companion.data.BattleMath.catchChance(ball, rate, foe.hp, foe.maxHp, foe.status, types, foe.level) }
+}
+
+/**
+ * A long press: [onLong] runs, and the press's lift is consumed so the button under it (a move card) doesn't also pick
+ * the move. Taps pass through as before.
+ */
+private fun Modifier.longPress(onLong: () -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+        val lifted = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            waitForUpOrCancellation(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+        }
+        if (lifted == null) {
+            onLong()
+            do {
+                val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                e.changes.forEach { it.consume() }
+            } while (e.changes.any { it.pressed })
+        }
+    }
+}
+
+/** A move's card: its name and category, accuracy, priority when it has one, and what it does besides damage. */
+@Composable
+private fun MoveInfoCard(mv: com.pokedaisy.app.companion.data.MoveView, modifier: Modifier) {
+    val m = rememberGbaTextMetrics(1f)
+    val small = rememberGbaTextMetrics(0.75f)
+    val u = m.u
+    val st = com.pokedaisy.app.companion.data.moveStats(mv.id)
+    val type = com.pokedaisy.app.companion.data.typeIdOf(mv.type)
+    val category = when {
+        mv.power <= 0 -> tr("STATUS")
+        com.pokedaisy.app.companion.data.BattleMath.physical(type) -> tr("PHYSICAL")
+        else -> tr("SPECIAL")
+    }
+    val ink = Color(0xFF383848)
+    val shade = Color(0xFFD0D0C8)
+    Column(
+        modifier.background(Color(0xF0F8F8F0), PixelRoundedShape(u * 4)).padding(horizontal = u * 7, vertical = u * 4),
+        verticalArrangement = Arrangement.spacedBy(u * 2),
+    ) {
+        GbaText("${mv.name} · $category", ink, shade, m)
+        if (st != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(u * 8)) {
+                GbaText("${tr("ACCURACY")} ${if (st.accuracy == 0) "-" else "${st.accuracy}%"}", ink, shade, small)
+                if (st.priority != 0) GbaText("${tr("PRIORITY")} ${if (st.priority > 0) "+" else ""}${st.priority}", ink, shade, small)
+            }
+            moveEffectText(st)?.let { GbaText(it, ink, shade, small) }
+        }
+    }
+}
+
+/** What [st]'s effect does, in the player's words; null for a plain hit or an effect not described yet. */
+private fun moveEffectText(st: com.pokedaisy.app.companion.data.MoveStats): String? {
+    val e = st.effect
+    val chance = st.effectChance
+    val stat = STAT_WORDS.entries.firstOrNull { e.startsWith(it.key + "_") }
+    if (stat != null) {
+        val rest = e.removePrefix(stat.key + "_")
+        val label = tr(stat.value)
+        return when (rest) {
+            "UP" -> tr("Your {0} +{1}", label, 1)
+            "UP_2" -> tr("Your {0} +{1}", label, 2)
+            "DOWN" -> tr("Foe's {0} -{1}", label, 1)
+            "DOWN_2" -> tr("Foe's {0} -{1}", label, 2)
+            "DOWN_HIT" -> tr("{0}%: foe's {1} -1", chance, label)
+            else -> null
+        }
+    }
+    return when (e) {
+        "PARALYZE_HIT" -> tr("May paralyze ({0}%)", chance)
+        "BURN_HIT" -> tr("May burn ({0}%)", chance)
+        "FREEZE_HIT" -> tr("May freeze ({0}%)", chance)
+        "POISON_HIT" -> tr("May poison ({0}%)", chance)
+        "CONFUSE_HIT" -> tr("May confuse ({0}%)", chance)
+        "FLINCH_HIT", "FLINCH_MINIMIZE_HIT" -> tr("May make the foe flinch ({0}%)", chance)
+        "SLEEP" -> tr("Puts the foe to sleep")
+        "PARALYZE" -> tr("Paralyzes the foe")
+        "POISON" -> tr("Poisons the foe")
+        "TOXIC" -> tr("Badly poisons the foe")
+        "CONFUSE" -> tr("Confuses the foe")
+        "HIGH_CRITICAL" -> tr("High critical-hit ratio")
+        "MULTI_HIT" -> tr("Hits 2 to 5 times")
+        "ABSORB" -> tr("Heals half the damage dealt")
+        "RECOIL", "DOUBLE_EDGE" -> tr("The user takes recoil")
+        "TRAP" -> tr("Traps the foe for 2 to 5 turns")
+        "OHKO" -> tr("One-hit KO")
+        "ALWAYS_HIT" -> tr("Never misses")
+        else -> null
+    }
+}
+
+/** gBattleMoves' EFFECT_* stat words, to the labels the summary uses. */
+private val STAT_WORDS = linkedMapOf(
+    "SPECIAL_ATTACK" to "SP. ATK", "SPECIAL_DEFENSE" to "SP. DEF", "ATTACK" to "ATTACK", "DEFENSE" to "DEFENSE",
+    "SPEED" to "SPEED", "ACCURACY" to "ACCURACY", "EVASION" to "EVASION",
+)
+
+/** The battle's lasting effects as small labels, the player's side then the foe's (its labels red-framed), centred under
+ * [top] px... at [topDp] from the stage's top. Nothing when there are none. */
+@Composable
+private fun EffectsChips(battleInput: BattleInput?, topDp: androidx.compose.ui.unit.Dp) {
+    val none = remember { MutableStateFlow<com.pokedaisy.app.companion.data.BattleEffects?>(null) }
+    val fx = (battleInput?.effects ?: none).collectAsState().value ?: return
+    if (fx.isEmpty) return
+    val m = rememberGbaTextMetrics(0.75f)
+    val u = m.u
+    val chips = buildList {
+        fx.weather?.let { w ->
+            val word = tr(when (w) {
+                com.pokedaisy.app.companion.data.BattleEffects.Weather.RAIN -> "RAIN"
+                com.pokedaisy.app.companion.data.BattleEffects.Weather.SANDSTORM -> "SANDSTORM"
+                com.pokedaisy.app.companion.data.BattleEffects.Weather.SUN -> "SUN"
+                com.pokedaisy.app.companion.data.BattleEffects.Weather.HAIL -> "HAIL"
+            })
+            add((if (fx.weatherTurns > 0) "$word ${fx.weatherTurns}" else word) to null)
+        }
+        fx.sides.forEachIndexed { side, s ->
+            val foe = side == 1
+            if (s.reflect > 0) add("${tr("REFLECT")} ${s.reflect}" to foe)
+            if (s.lightScreen > 0) add("${tr("LIGHT SCREEN")} ${s.lightScreen}" to foe)
+            if (s.mist > 0) add("${tr("MIST")} ${s.mist}" to foe)
+            if (s.safeguard > 0) add("${tr("SAFEGUARD")} ${s.safeguard}" to foe)
+            if (s.spikes > 0) add("${tr("SPIKES")} x${s.spikes}" to foe)
+        }
+        fx.battlers.forEachIndexed { b, x ->
+            val foe = b == 1
+            if (x.confused) add(tr("CONFUSED") to foe)
+            if (x.bound) add(tr("BOUND") to foe)
+            if (x.leechSeed) add(tr("LEECH SEED") to foe)
+            if (x.sleepTurns > 0) add("${tr("ASLEEP")} ${x.sleepTurns}" to foe)
+        }
+    }
+    Box(Modifier.fillMaxWidth().padding(top = 4.dp), contentAlignment = Alignment.TopCenter) {
+        Row(Modifier.heightIn(max = topDp), horizontalArrangement = Arrangement.spacedBy(u * 3)) {
+            chips.forEach { (text, foe) ->
+                val frame = when (foe) { true -> Color(0xFFD8343A); false -> Color(0xFF3A6FD8); null -> Color(0xFF6B6F8A) }
+                Box(
+                    Modifier.background(frame, PixelRoundedShape(u * 3)).padding(u)
+                        .background(Color(0xF0F8F8F0), PixelRoundedShape(u * 2)).padding(horizontal = u * 4, vertical = u),
+                ) { GbaText(text, Color(0xFF383848), Color(0xFFD0D0C8), m) }
+            }
+        }
+    }
 }
 
 /** FireRed's battle bag pockets (gBagMenuState.pocket). */

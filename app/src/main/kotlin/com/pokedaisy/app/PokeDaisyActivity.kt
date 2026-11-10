@@ -367,6 +367,7 @@ class PokeDaisyActivity : Activity() {
         override fun back() { if (::engine.isInitialized) engine.battleBack() }
         override val canSwitch get() = ::engine.isInitialized && engine.battleSwitchAddrs != null
         override val menuCursor get() = if (::engine.isInitialized) engine.battleMenuCursor else null
+        override val effects get() = if (::engine.isInitialized) engine.battleEffects else null
         override val canUseItems get() = ::engine.isInitialized && engine.battleBagAddrs != null
         override fun useItem(itemId: Int, pocket: Int, personality: Long?): Boolean {
             if (!::engine.isInitialized) return false
@@ -2168,6 +2169,8 @@ class PokeDaisyActivity : Activity() {
                 if (snap.connected) FfMenuWatch.notePosition(snap.x, snap.y, snap.mapGroup, snap.mapNum, snap.inBattle)
                 if (snap.connected) battleSwitchAddrs = switchAddrsFor(snap.game)
                 if (snap.connected) battleBagAddrs = bagAddrsFor(snap.game)
+                // The same games' lasting effects (their battle EWRAM is FireRed's).
+                if (snap.connected) battleEffectsAddrs = if (bagAddrsFor(snap.game) != null) com.pokedaisy.app.companion.data.BattleEffects.FIRERED else null
                 // SHINY ODDS: the foe party of a game it knows (retail FireRed / Emerald), handed to the engine.
                 if (snap.connected) telemetry.knownShinyTarget().let { t ->
                     if (t != shinyTarget) {
@@ -4207,6 +4210,16 @@ class PokeDaisyActivity : Activity() {
             }
             if (event.repeatCount == 0) menuHeld.add(code) else if (code !in menuHeld) return true
             if (event.repeatCount == 0 || key in BAND_REPEAT_KEYS) bag.keys.tryEmit(key)
+            return true
+        }
+        // The band's moves up: L / R show the game's cursor move's card (accuracy, effect) - kept from the game, whose
+        // L / R open its help there.
+        val moves = com.pokedaisy.app.companion.ui.BandMoves
+        if (!band.open.value && moves.available && (key == MenuKey.L || key == MenuKey.R)) {
+            if (down && event.repeatCount == 0 && ::engine.isInitialized) {
+                engine.battleMenuCursor.value.takeIf { it >= 0 }?.let { moves.toggle(it) }
+                menuHeld.add(code)
+            } else if (!down) menuHeld.remove(code)
             return true
         }
         if (!band.open.value) {

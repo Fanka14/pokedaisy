@@ -129,6 +129,13 @@ class BattleInputController(
      * -1 = none or unknown. Read on every [onState], so a controller's presses show on BATTLE BAND, which covers the game's. */
     val menuCursor = kotlinx.coroutines.flow.MutableStateFlow(-1)
 
+    /** Where the battle's lasting effects are ([com.pokedaisy.app.companion.data.BattleEffects]); null = not read here. */
+    @Volatile
+    var effectsAddrs: com.pokedaisy.app.companion.data.BattleEffects.Addrs? = null
+
+    /** The battle's lasting effects, read with each battle state while a battle is on; null = none / not read. */
+    val effects = kotlinx.coroutines.flow.MutableStateFlow<com.pokedaisy.app.companion.data.BattleEffects?>(null)
+
     /**
      * FireRed's battle bag, for [useItem] (pret/pokefirered's symbols; the same in LeafGreen and French LeafGreen):
      * [menuState] is gBagMenuState (BagStruct: pocket u16 at +6, each pocket's selected row u16 at +8, its scroll at
@@ -736,6 +743,9 @@ class BattleInputController(
             lastBattler = activeBattler.coerceIn(0, 3)
             gameState = state
             menuCursor.value = readMenuCursorLocked(state)
+            effects.value = effectsAddrs?.takeIf { state != BATTLE_INPUT_NONE }?.let { a ->
+                com.pokedaisy.app.companion.data.BattleEffects.read(a) { addr, len -> reader.readCoreMemory(addr, len) }
+            }
             // A pick still steering is still on its menu: nothing below has happened yet.
             if (pickCell >= 0 || gbPickCell >= 0) return
 

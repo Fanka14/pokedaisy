@@ -28,6 +28,9 @@ interface BattleInput {
     /** The game's own cursor on the battle menu that waits (an action's value / a move, -1 = none), or null where it isn't read. */
     val menuCursor: kotlinx.coroutines.flow.StateFlow<Int>? get() = null
 
+    /** The battle's lasting effects (weather, screens, confusion...), or null where they aren't read. */
+    val effects: kotlinx.coroutines.flow.StateFlow<com.pokedaisy.app.companion.data.BattleEffects?>? get() = null
+
     /** Whether [useItem] works in this game (its battle bag is known). */
     val canUseItems: Boolean get() = false
 
