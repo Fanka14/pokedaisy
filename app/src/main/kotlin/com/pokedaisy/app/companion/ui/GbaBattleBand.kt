@@ -593,8 +593,10 @@ private fun moveEstimates(snapshot: SnapshotView): List<String?> =
 /** [me]'s moves' damage on [foe] (see the one above); the companion's move grid shows them too. */
 internal fun moveEstimates(me: com.pokedaisy.app.companion.data.MonView?, foe: com.pokedaisy.app.companion.data.MonView?): List<String?> {
     if (me == null || foe == null) return emptyList()
-    val mine = me.battleStats ?: return emptyList()
-    val theirs = foe.battleStats ?: return emptyList()
+    // The battle's own stats, else the party record's (HP first there): the player's battler often has only those.
+    fun fight(m: com.pokedaisy.app.companion.data.MonView) = m.battleStats ?: m.stats?.stats?.drop(1)?.takeIf { it.size == 5 }
+    val mine = fight(me) ?: return emptyList()
+    val theirs = fight(foe) ?: return emptyList()
     return me.moves.take(4).map { mv ->
         val type = com.pokedaisy.app.companion.data.typeIdOf(mv.type)
         val phys = com.pokedaisy.app.companion.data.BattleMath.physical(type)
