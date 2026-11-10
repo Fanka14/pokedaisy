@@ -151,6 +151,8 @@ internal fun BattlePartyList(
     keyCursor: Int = -1,
     /** BATTLE BAND: an INFO button left of each row opens that Pokémon's summary (party index); null = none. */
     onSummary: ((Int) -> Unit)? = null,
+    /** The row whose summary is open: its INFO is lit. */
+    summaryOpen: Int = -1,
 ) {
     CompanionBackHandler(enabled = !busy, onBack = onBack)
     val callback = onPick != null
@@ -173,7 +175,7 @@ internal fun BattlePartyList(
                         .slotClickable(sound = callback, enabled = pick) { if (onPick != null) onPick(i) else battleInput?.switchTo(mon.personality) },
                 ) { PartyListRow(palette, mon, selected = i == cursor, u, if (onSummary != null) 0.dp else edge, tag) }
                 // INFO on the right (the player's call), running off the screen's edge in the row's place.
-                if (onSummary != null) SummaryButton(rowH, u, edge) { onSummary(i) }
+                if (onSummary != null) SummaryButton(rowH, u, edge, lit = i == summaryOpen) { onSummary(i) }
             }
         }
         ListCancel(!busy, rowH * 0.7f, edge, onBack, selected = keyCursor == party.size)
@@ -182,9 +184,10 @@ internal fun BattlePartyList(
 
 /** A row's INFO (BATTLE BAND's party list): the Pokémon's summary. */
 @Composable
-private fun SummaryButton(h: Dp, u: Dp, edge: Dp, onClick: () -> Unit) {
+private fun SummaryButton(h: Dp, u: Dp, edge: Dp, lit: Boolean = false, onClick: () -> Unit) {
+    // Lit (the open summary's): the summary's STATS purple.
     PlatinumButton(
-        fill = Color(0xFF6A7080), frame = Color(0xFF3C4250), modifier = Modifier.width(u * SUMMARY_BUTTON_W + edge).height(h * 0.8f),
+        fill = if (lit) StatsPurple else Color(0xFF6A7080), frame = if (lit) StatsPurpleDark else Color(0xFF3C4250), modifier = Modifier.width(u * SUMMARY_BUTTON_W + edge).height(h * 0.8f),
         outline = u, contentPadding = PaddingValues(start = u * 2, top = u * 2, bottom = u * 2, end = u * 2 + edge), onClick = onClick,
     ) { PixelArt(PixelIcons.info, mapOf('1' to Color.White), Modifier.size(u * 14)) }
 }

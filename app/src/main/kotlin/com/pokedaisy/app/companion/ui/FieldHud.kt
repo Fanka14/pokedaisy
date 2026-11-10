@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -1458,11 +1461,14 @@ internal fun BattleSummarySide(snapshot: SnapshotView, index: Int, onIndex: (Int
     val u = rememberGbaTextMetrics(1f).u
     // Taps on it stay its own (the game's touch pad is under the band's view).
     val keep = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
-    Box(Modifier.fillMaxSize().padding(u * 4).then(keep)) {
+    // Clear of the screen's camera hole held sideways (the display cutout, left on a Pixel), the player's call.
+    val cutout = androidx.compose.foundation.layout.WindowInsets.displayCutout
+        .only(androidx.compose.foundation.layout.WindowInsetsSides.Start)
+    Box(Modifier.fillMaxSize().windowInsetsPadding(cutout).padding(u * 4).then(keep)) {
         CompositionLocalProvider(LocalOptionLook provides HudWindowLook) {
             MonDetailScreen(
                 snapshot.party, index.coerceIn(0, (snapshot.party.size - 1).coerceAtLeast(0)),
-                onIndexChange = onIndex, onBack = onClose, partyColumn = false,
+                onIndexChange = onIndex, onBack = onClose, partyColumn = false, keys = BandParty.summaryKeys,
             )
         }
     }

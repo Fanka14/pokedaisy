@@ -184,7 +184,9 @@ fun BattleButtons(
 internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, onClose: () -> Unit) {
     val n = snapshot.party.size.coerceAtLeast(1)
     // A row's INFO opens the Pokémon's summary over the list; its BACK comes back to the list.
-    var summary by remember { mutableStateOf<Int?>(null) }
+    var summary by BandParty.summary
+    // The list's closing closes it too.
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { BandParty.summary.value = null } }
     // The open summary follows the list's row: a controller's UP / DOWN shows the next Pokémon's (CANCEL keeps the last).
     val row = BandParty.cursor.intValue
     LaunchedEffect(row) { if (summary != null && row in snapshot.party.indices) summary = row }
@@ -203,7 +205,9 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
             BattlePartyList(
                 snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
                 u2 * listW, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose, keyCursor = BandParty.cursor.intValue,
-                onSummary = { summary = it; BandParty.cursor.intValue = it },
+                // INFO again on the open one closes it.
+                onSummary = { if (summary == it) summary = null else { summary = it; BandParty.cursor.intValue = it } },
+                summaryOpen = summary ?: -1,
             )
         }
     }

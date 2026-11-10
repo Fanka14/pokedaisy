@@ -148,12 +148,17 @@ object BandParty {
     /** The list's rows, CANCEL included. */
     @Volatile
     var rows = 0
+    /** The party index whose summary is open beside the list (its INFO pressed); null = none. */
+    val summary = androidx.compose.runtime.mutableStateOf<Int?>(null)
+    /** A controller's keys for that summary (LEFT / RIGHT: STATS / MOVES). */
+    val summaryKeys = kotlinx.coroutines.flow.MutableSharedFlow<MenuKey>(extraBufferCapacity = 8)
     /** Row i picked (the last, CANCEL, closes the list). */
     @Volatile
     var pick: ((Int) -> Unit)? = null
 
     fun close() {
         open.value = false
+        summary.value = null
         available = false
     }
 }

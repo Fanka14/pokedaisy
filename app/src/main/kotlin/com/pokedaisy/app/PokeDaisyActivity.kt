@@ -4243,6 +4243,11 @@ class PokeDaisyActivity : Activity() {
     /** A key on the band's open party list: the D-pad moves its row, A picks it, B closes the list. */
     private fun bandPartyKey(key: MenuKey, first: Boolean) {
         val band = com.pokedaisy.app.companion.ui.BandParty
+        // A summary open beside the list: LEFT / RIGHT are its (STATS / MOVES).
+        if (band.summary.value != null && (key == MenuKey.LEFT || key == MenuKey.RIGHT)) {
+            if (first) band.summaryKeys.tryEmit(key)
+            return
+        }
         val rows = band.rows.coerceAtLeast(1)
         val at = band.cursor.intValue
         when (key) {
@@ -4261,7 +4266,7 @@ class PokeDaisyActivity : Activity() {
         bandHat = bits
         val key = menuKeyFor(pressed)
         if (com.pokedaisy.app.companion.ui.BandBag.open.value) key?.let { com.pokedaisy.app.companion.ui.BandBag.keys.tryEmit(it) }
-        else key?.takeIf { it == MenuKey.UP || it == MenuKey.DOWN }?.let { bandPartyKey(it, first = true) }
+        else key?.takeIf { it == MenuKey.UP || it == MenuKey.DOWN || it == MenuKey.LEFT || it == MenuKey.RIGHT }?.let { bandPartyKey(it, first = true) }
         return true
     }
     private var bandHat = 0
