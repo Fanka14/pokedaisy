@@ -1291,13 +1291,17 @@ private fun HudBagPanel(
     val items = snapshot.items.filter { basePocket(it.pocket) == pocket }
     // The bag as a whole, so every pocket looks the same: no item has a picture.
     val noItemPictures = snapshot.items.all { it.iconAsset == null }
-    var pickedId by remember(pocket) { mutableStateOf(items.firstOrNull()?.itemId) }
+    // Not keyed on the pocket / item: a controller's keys are read by one long-lived coroutine, which a re-keyed state
+    // left writing to the old one (its cursor lost after L / R). A pocket change picks its first item where it happens.
+    var pickedId by remember { mutableStateOf(items.firstOrNull()?.itemId) }
     val picked = items.firstOrNull { it.itemId == pickedId }
     // What the last USE did, for the item it was done with; the party pick a USE on a Pokémon opened.
     var message by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    var targets by remember(pickedId) { mutableStateOf<List<PartyTarget>?>(null) }
+    var targets by remember { mutableStateOf<List<PartyTarget>?>(null) }
+    LaunchedEffect(pickedId) { targets = null }
     // The controller's Pokémon among [targets] (-1: none yet, as after a tap).
-    var targetCursor by remember(targets) { mutableStateOf(targets?.indexOfFirst { it.verdict == SlotVerdict.OK } ?: -1) }
+    var targetCursor by remember { mutableStateOf(-1) }
+    LaunchedEffect(targets) { targetCursor = targets?.indexOfFirst { it.verdict == SlotVerdict.OK } ?: -1 }
     val (align, place) = panelPlace(dock, top, u, inset)
     val use = picked?.let { item -> itemUse?.takeIf { it.canUse(item.itemId) && !it.picksMove(item.itemId) } }
     // USE, from its button or a controller's A.
@@ -1384,7 +1388,10 @@ private fun HudBagPanel(
                     val on = pk == pocket
                     Box(
                         Modifier.background(if (on) c.accent else Color.Transparent, PixelRoundedShape(u * 2))
-                            .soundClickable { pocket = pk }
+                            .soundClickable {
+                                pocket = pk
+                                pickedId = snapshot.items.firstOrNull { basePocket(it.pocket) == pk }?.itemId
+                            }
                             .padding(horizontal = u * 4, vertical = u * 2),
                     ) { GbaText(pocketLabel(pk), if (on) c.onAccent else c.text, if (on) Color.Transparent else c.shadow, small) }
                 }
