@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.displayCutout
@@ -1274,7 +1275,7 @@ private fun panelPlace(dock: Boolean, top: Boolean, u: Dp, inset: PaddingValues)
  * where the game lets the app use it (FieldItems): straight away, or on the Pokémon picked from the party under it.
  * Items used on a move (PP) are left to the BAG tab.
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun HudBagPanel(
     snapshot: SnapshotView, m: GbaTextMetrics, itemUse: ItemUse?, dock: Boolean, top: Boolean, inset: PaddingValues, startPocket: Int, onClose: () -> Unit,
@@ -1322,6 +1323,10 @@ private fun HudBagPanel(
         }
     }
     val current by androidx.compose.runtime.rememberUpdatedState(Triple(items, doUse, useOnTarget))
+    val allItems by androidx.compose.runtime.rememberUpdatedState(snapshot.items)
+    // The picked item kept in view as a controller walks the pocket (two and a half rows show).
+    val pickedView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    LaunchedEffect(pickedId, pocket) { if (keys != null) runCatching { pickedView.bringIntoView() } }
     if (keys != null) LaunchedEffect(keys) {
         keys.collect { k ->
             val (list, useNow, useOn) = current
@@ -1342,7 +1347,12 @@ private fun HudBagPanel(
                     MenuKey.DOWN -> list.getOrNull((at + step).coerceAtMost(list.lastIndex))?.let { pickedId = it.itemId }
                     MenuKey.L, MenuKey.R -> {
                         val i = pockets.indexOf(pocket)
-                        if (pockets.isNotEmpty()) pocket = pockets[(i + if (k == MenuKey.R) 1 else pockets.size - 1) % pockets.size]
+                        if (pockets.isNotEmpty()) {
+                            val next = pockets[(i + if (k == MenuKey.R) 1 else pockets.size - 1) % pockets.size]
+                            pocket = next
+                            // The new pocket's first item picked at once, so the controller keeps a cursor there.
+                            pickedId = allItems.firstOrNull { basePocket(it.pocket) == next }?.itemId
+                        }
                     }
                     MenuKey.A -> useNow()
                     MenuKey.B -> onClose()
@@ -1376,6 +1386,7 @@ private fun HudBagPanel(
                     items.forEach { item ->
                         Row(
                             Modifier.fillMaxWidth()
+                                .then(if (item.itemId == pickedId) Modifier.bringIntoViewRequester(pickedView) else Modifier)
                                 .background(if (item.itemId == pickedId) c.cellOn else c.cell, PixelRoundedShape(u * 3))
                                 .soundClickable { pickedId = item.itemId }
                                 .padding(horizontal = u * 5, vertical = u * 3),
@@ -1394,6 +1405,7 @@ private fun HudBagPanel(
                         row.forEach { item ->
                             Box(
                                 Modifier.size(u * 46)
+                                    .then(if (item.itemId == pickedId) Modifier.bringIntoViewRequester(pickedView) else Modifier)
                                     .background(if (item.itemId == pickedId) c.cellOn else c.cell, PixelRoundedShape(u * 3))
                                     .soundClickable { pickedId = item.itemId },
                             ) {
