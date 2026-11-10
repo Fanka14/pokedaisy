@@ -104,8 +104,12 @@ class WideCamera {
     /** Back to 1x on the player at once (a new game, a state load, WIDE switched on); the [level] picked comes back
      * [RETURN_DELAY_NANOS] after the field shows, eased out like any return from a close view (a game opened with a
      * saved ZOOM: once it's loaded, not over its title). */
+    /** The last close view was a battle's (its start or the battle itself), not a text box or a menu screen. */
+    private var closeWasBattle = false
+
     fun reset() {
         closeOverSince = 0L
+        closeWasBattle = false
         scale = 0f
         lookX = 0f
         lookY = 0f
@@ -132,9 +136,12 @@ class WideCamera {
         // A fade decides nothing; nor does a picture over the field (FireRed's map preview, ~2 s): a pull-in and a
         // zoom back out around it was motion for nothing - the card shows over the dimmed world at whatever zoom.
         if (scene == SCENE_FADE || scene == SCENE_OVERLAY) Unit
-        else if (wantsClose) closeOverSince = 0L
-        else if (closeOverSince == 0L) closeOverSince = now
-        val close = closeOverSince == 0L || now - closeOverSince < RETURN_DELAY_NANOS
+        else if (wantsClose) {
+            closeOverSince = 0L
+            closeWasBattle = scene == SCENE_BATTLE_START || scene == SCENE_OFF
+        } else if (closeOverSince == 0L) closeOverSince = now
+        // After a battle the field comes back at the chosen zoom at once, no zoom out over it (the player's call).
+        val close = closeOverSince == 0L || !closeWasBattle && now - closeOverSince < RETURN_DELAY_NANOS
         val target = if (close) fit else steps[level.coerceIn(0, steps.size - 1)]
         // The zoom is a timed ease-in-out in log space (the same feel at every step): a new target starts a new
         // motion from wherever the last one is - a pull-in at the pace of what's coming, the way back out slower.
@@ -146,6 +153,7 @@ class WideCamera {
                 scale <= 0f -> 0L
                 target > tweenFrom && scene == SCENE_BATTLE_START -> PULL_IN_BATTLE_NANOS
                 target > tweenFrom -> PULL_IN_NANOS
+                closeWasBattle -> 0L
                 else -> ZOOM_OUT_NANOS
             }
         }
