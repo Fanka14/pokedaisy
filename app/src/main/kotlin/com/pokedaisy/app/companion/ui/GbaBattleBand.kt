@@ -326,10 +326,14 @@ fun GbaBattleBand(
         val balls = snapshot.items.filter {
             com.pokedaisy.app.companion.data.basePocket(it.pocket) == com.pokedaisy.app.companion.data.POCKET_POKE_BALLS && it.quantity > 0
         }
-        if (ownBag && wild && balls.isNotEmpty() && shownMode == MODE_ACTIONS && !partyOpen && !bagOpen) {
+        val evs = rememberEvYield(snapshot)
+        val showBalls = ownBag && wild && balls.isNotEmpty()
+        if ((showBalls || evs != null) && shownMode == MODE_ACTIONS && !partyOpen && !bagOpen) {
             Column(Modifier.align(Alignment.TopEnd).padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp), horizontalAlignment = Alignment.End) {
+                // What beating the foe gives (EVs), at the column's head (the player's call).
+                if (evs != null) EvYieldLabel(evs)
                 val chance = rememberCatchChance(snapshot)
-                balls.forEach { ball ->
+                if (showBalls) balls.forEach { ball ->
                     BallButton(ball.iconAsset, ball.quantity, chance(ball.itemId), enabled = !idle, Modifier) {
                         battleInput?.useItem(ball.itemId, BAG_BALLS, null)
                     }
@@ -799,6 +803,32 @@ private fun EffectsChips(battleInput: BattleInput?, topDp: androidx.compose.ui.u
                 ) { GbaText(text, Color(0xFF383848), Color(0xFFD0D0C8), m) }
             }
         }
+    }
+}
+
+/** The foe's EV yield ([com.pokedaisy.app.companion.data.PokedexSource.evYield]) as (stat label, points), the stats it
+ * gives only; null where unknown or none. */
+@Composable
+private fun rememberEvYield(snapshot: SnapshotView): List<Pair<String, Int>>? {
+    val foe = snapshot.battleOpponent.getOrNull(0) ?: return null
+    val tables = snapshot.pokedex?.tables ?: return null
+    val ev = remember(foe.species, tables) {
+        runCatching { com.pokedaisy.app.companion.data.PokedexSource.evYield(tables, foe.species) }.getOrNull()
+    } ?: return null
+    return listOf("HP", "ATTACK", "DEFENSE", "SPEED", "SP. ATK", "SP. DEF").zip(ev.toList()).filter { it.second > 0 }.takeIf { it.isNotEmpty() }
+}
+
+/** "GIVES" and the EVs, the ball buttons' look. */
+@Composable
+private fun EvYieldLabel(evs: List<Pair<String, Int>>) {
+    val m = rememberGbaTextMetrics(0.75f)
+    val u = rememberGbaTextMetrics(1f).u
+    Column(
+        Modifier.background(Color(0xF0F8F8F0), PixelRoundedShape(u * 3)).padding(horizontal = u * 6, vertical = u * 3),
+        horizontalAlignment = Alignment.End,
+    ) {
+        GbaText(tr("GIVES"), Color(0xFF606070), Color(0xFFD8D8D0), m)
+        evs.forEach { (label, n) -> GbaText("+$n ${tr(label)}", Color(0xFF383848), Color(0xFFD0D0C8), m) }
     }
 }
 

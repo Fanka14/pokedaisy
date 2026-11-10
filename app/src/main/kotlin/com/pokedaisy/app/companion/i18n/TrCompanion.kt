@@ -395,4 +395,5 @@ internal val trCompanion: Map<String, Tr> = mapOf(
     "The user takes recoil" to Tr(ja = "はんどうで ダメージを うける", fr = "Le lanceur subit un contrecoup", de = "Der Anwender erleidet Rückstoß", it = "Chi la usa subisce contraccolpo", es = "El usuario sufre retroceso", br = "O usuário sofre recuo", pt = "O utilizador sofre recuo"),
     "Traps the foe for 2 to 5 turns" to Tr(ja = "2から5ターン とじこめる", fr = "Piège l'adversaire 2 à 5 tours", de = "Fängt den Gegner 2 bis 5 Runden", it = "Intrappola il nemico per 2-5 turni", es = "Atrapa al rival de 2 a 5 turnos", br = "Prende o oponente por 2 a 5 turnos", pt = "Prende o adversário por 2 a 5 turnos"),
     "One-hit KO" to Tr(ja = "いちげき ひっさつ", fr = "K.O. en un coup", de = "K.O. mit einem Treffer", it = "KO in un colpo", es = "KO de un golpe", br = "Nocaute em um golpe", pt = "KO num só golpe"),
+    "GIVES" to Tr(ja = "どりょくち", fr = "RAPPORTE", de = "GIBT", it = "DÀ", es = "DA", br = "DÁ", pt = "DÁ"),
 )
