@@ -524,8 +524,12 @@ internal fun MoveCard(
             // A short screen (the RG DS): the two lines, smaller - its cards are too short for three.
             val short = LocalShortCompanion.current
             val k = if (short) SHORT_MOVE_TEXT else 1f
+            // The damage estimate on the card's right, on its own (the player's call: easier to read there).
+            if ((compact || short) && estimate != null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                Text(estimate, color = AppColors.text, fontSize = 30.sp * k, style = tight, maxLines = 1)
+            }
             if (compact || short) Column(
-                modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxSize().padding(end = if (estimate != null) 150.dp * k else 0.dp), verticalArrangement = Arrangement.SpaceEvenly,
                 horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
             ) {
                 // Name and PP, then type, power and the multipliers.
@@ -544,7 +548,6 @@ internal fun MoveCard(
                     TypeBadge(mv.type, fontSize = 16.sp * k)
                     Text(tr("PWR {0}", powerLabel(mv.power)), color = AppColors.muted, fontSize = 22.sp * k, style = tight, maxLines = 1)
                     if (showHints) mv.vs.forEach { v -> MultiplierChip(v.label, v.pct, fontSize = 16.sp * k) }
-                    if (estimate != null) Text(estimate, color = AppColors.text, fontSize = 22.sp * k, style = tight, maxLines = 1)
                 }
             } else Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
                 Text(
