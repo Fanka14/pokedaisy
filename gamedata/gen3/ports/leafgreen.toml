@@ -83,6 +83,8 @@ trainerCard = 'none'
 # (2026-11-08): the D-pad walks the action cursor 0 -> 2 -> 3 -> 1 and BATTLE BAND's frame follows it.
 actionCursor = 0x02023FF8
 moveCursor = 0x02023FFC
+# gEnemyParty: FireRed's (pret's LeafGreen symbols too; gPlayerParty matches English here), for the wild foe's IVs.
+enemyParty = 0x0202402C
 bagPockets = 0x0203988C
 battleMons = 0x02023BE4
 battleTypeFlags = 0x02022B4C
