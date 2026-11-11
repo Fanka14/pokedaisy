@@ -2,6 +2,7 @@ package com.pokedaisy.app.companion.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -342,6 +343,10 @@ fun GbaBattleBand(
         }
         // The stat stages the game never shows (Attack +1, Accuracy -1...), both sides, top left (the player's call).
         if (!partyOpen && !bagOpen) StatStagesPanel(snapshot, Modifier.align(Alignment.TopStart).padding(8.dp))
+        // The wild foe's IVs as a gauge in its box's dark shadow (the player's call), shining when they're perfect.
+        if (wild) snapshot.battleOpponent.getOrNull(0)?.stats?.ivs?.takeIf { it.size == 6 }?.let { ivs ->
+            IvGauge(ivs.sum(), ivs.all { it == 31 }, picture)
+        }
         // What lasts several turns (weather, screens, confusion...), top centre: clear of the stat stages, the balls and
         // the foe's box under it.
         if (!partyOpen && !bagOpen) EffectsChips(battleInput, with(base) { (picture.top + picture.height * 0.085f).toDp() })
@@ -831,6 +836,46 @@ private fun EvYieldLabel(evs: List<Pair<String, Int>>) {
         evs.forEach { (label, n) -> GbaText("+$n ${tr(label)}", Color(0xFF383848), Color(0xFFD0D0C8), m) }
     }
 }
+
+/**
+ * The foe's IV total (0..186) as a gauge laid in the dark shadow under its box (GBA pixels x [IV_GAUGE_X0]..[IV_GAUGE_X1],
+ * y [IV_GAUGE_Y] for [IV_GAUGE_H], measured on FireRed's battle screen), over [picture], the GBA's own frame on screen.
+ * [perfect]: every IV 31 - the gauge shines, white and gold in turn.
+ */
+@Composable
+private fun IvGauge(total: Int, perfect: Boolean, picture: Rect) {
+    val gp = picture.height / GBA_H
+    val base = LocalDensity.current
+    val blink = if (perfect) {
+        val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "iv-shine")
+        t.animateFloat(
+            0f, 1f,
+            androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(450), androidx.compose.animation.core.RepeatMode.Reverse),
+            label = "iv-shine",
+        ).value
+    } else 0f
+    val fill = when {
+        perfect -> androidx.compose.ui.graphics.lerp(Color(0xFFFFD84A), Color.White, blink)
+        total >= 140 -> Color(0xFF58D878)
+        total >= 90 -> Color(0xFFF8D030)
+        else -> Color(0xFFE86040)
+    }
+    with(base) {
+        val x0 = picture.left + IV_GAUGE_X0 * gp
+        val w = (IV_GAUGE_X1 - IV_GAUGE_X0) * gp
+        Canvas(
+            Modifier.offset { IntOffset(x0.toInt(), (picture.top + IV_GAUGE_Y * gp).toInt()) }.size(w.toDp(), (IV_GAUGE_H * gp).toDp()),
+        ) {
+            drawRect(Color(0xFF2A3A34), size = size)
+            drawRect(fill, size = androidx.compose.ui.geometry.Size(size.width * total / 186f, size.height))
+        }
+    }
+}
+
+private const val IV_GAUGE_X0 = 26f
+private const val IV_GAUGE_X1 = 104f
+private const val IV_GAUGE_Y = 41.5f
+private const val IV_GAUGE_H = 2f
 
 /** FireRed's battle bag pockets (gBagMenuState.pocket). */
 private const val BAG_ITEMS = 0
