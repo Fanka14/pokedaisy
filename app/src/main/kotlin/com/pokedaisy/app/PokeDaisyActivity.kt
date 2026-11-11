@@ -4256,9 +4256,18 @@ class PokeDaisyActivity : Activity() {
     /** A key on the band's open party list: the D-pad moves its row, A picks it, B closes the list. */
     private fun bandPartyKey(key: MenuKey, first: Boolean) {
         val band = com.pokedaisy.app.companion.ui.BandParty
-        // A summary open beside the list: LEFT / RIGHT are its (STATS / MOVES).
+        // A summary open beside the list: LEFT / RIGHT are its (STATS / MOVES), B closes it (a second B the list).
         if (band.summary.value != null && (key == MenuKey.LEFT || key == MenuKey.RIGHT)) {
             if (first) band.summaryKeys.tryEmit(key)
+            return
+        }
+        if (band.summary.value != null && key == MenuKey.B) {
+            if (first) band.summary.value = null
+            return
+        }
+        // None open: RIGHT (the side INFO sits on) opens the cursor row's, as INFO does.
+        if (key == MenuKey.RIGHT) {
+            if (first && band.cursor.intValue in 0 until (band.rows - 1)) band.summary.value = band.cursor.intValue
             return
         }
         val rows = band.rows.coerceAtLeast(1)
