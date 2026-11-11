@@ -188,6 +188,15 @@ internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?
     // The list's closing closes it too.
     androidx.compose.runtime.DisposableEffect(Unit) { onDispose { BandParty.summary.value = null } }
     // The open summary follows the list's row: a controller's UP / DOWN shows the next Pokémon's (CANCEL keeps the last).
+    // The controller's cursor starts on the row the list lights (BEST, else the one out), so RIGHT opens its summary at once.
+    LaunchedEffect(Unit) {
+        if (BandParty.cursor.intValue < 0) {
+            val active = snapshot.battlePlayer
+            val best = if (showHints) recommendedSwitch(snapshot.party, snapshot.battleOpponent.getOrNull(0), active) else null
+            BandParty.cursor.intValue = snapshot.party.indexOfFirst { it == best }.takeIf { it >= 0 }
+                ?: snapshot.party.indexOfFirst { isOut(it, active) }.takeIf { it >= 0 } ?: 0
+        }
+    }
     val row = BandParty.cursor.intValue
     LaunchedEffect(row) { if (summary != null && row in snapshot.party.indices) summary = row }
     // On a light panel of its own, the game's window cream (the player's call: the game behind made the rows hard to read).

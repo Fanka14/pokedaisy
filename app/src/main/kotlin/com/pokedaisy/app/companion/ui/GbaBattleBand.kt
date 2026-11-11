@@ -344,7 +344,7 @@ fun GbaBattleBand(
         // The stat stages the game never shows (Attack +1, Accuracy -1...), both sides, top left (the player's call).
         if (!partyOpen && !bagOpen) StatStagesPanel(snapshot, Modifier.align(Alignment.TopStart).padding(8.dp))
         // The wild foe's IVs as a gauge in its box's dark shadow (the player's call), shining when they're perfect.
-        if (wild) snapshot.battleOpponent.getOrNull(0)?.stats?.ivs?.takeIf { it.size == 6 }?.let { ivs ->
+        if (wild && !partyOpen && !bagOpen) snapshot.battleOpponent.getOrNull(0)?.stats?.ivs?.takeIf { it.size == 6 }?.let { ivs ->
             IvGauge(ivs.sum(), ivs.all { it == 31 }, picture)
         }
         // What lasts several turns (weather, screens, confusion...), top centre: clear of the stat stages, the balls and
