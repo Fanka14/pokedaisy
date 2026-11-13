@@ -25,6 +25,19 @@ interface BattleInput {
     /** Backs out of move-select to action-select (a single B press). */
     fun back()
 
+    /** The game's own cursor on the battle menu that waits (an action's value / a move, -1 = none), or null where it isn't read. */
+    val menuCursor: kotlinx.coroutines.flow.StateFlow<Int>? get() = null
+
+    /** The battle's lasting effects (weather, screens, confusion...), or null where they aren't read. */
+    val effects: kotlinx.coroutines.flow.StateFlow<com.pokedaisy.app.companion.data.BattleEffects?>? get() = null
+
+    /** Whether [useItem] works in this game (its battle bag is known). */
+    val canUseItems: Boolean get() = false
+
+    /** Uses bag item [itemId] from the battle bag's [pocket] (FireRed's: 0 ITEMS, 2 POKé BALLS) on the party Pokémon
+     * [personality] (null: an item used as it is, a ball). False = not started (the action menu isn't up...). */
+    fun useItem(itemId: Int, pocket: Int, personality: Long?): Boolean = false
+
     /** Whether [switchTo] works in this game (PokeDaisyActivity's switchAddrsFor knows it). */
     val canSwitch: Boolean get() = false
 

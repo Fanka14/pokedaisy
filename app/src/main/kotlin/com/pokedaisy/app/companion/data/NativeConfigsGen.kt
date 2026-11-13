@@ -863,6 +863,12 @@ private val NATIVE_PORT_BPGF0 by lazy {
         language = 'F',
         gameCode = "BPGF",
         trainerCard = null,
+        // The battle menus' cursors: FireRed's (its battle EWRAM is unmoved here, gBattleMons too), checked on a Pixel 8 Pro
+        // (2026-11-08): the D-pad walks the action cursor 0 -> 2 -> 3 -> 1 and BATTLE BAND's frame follows it.
+        actionCursor = 0x02023FF8L,
+        moveCursor = 0x02023FFCL,
+        // gEnemyParty: FireRed's (pret's LeafGreen symbols too; gPlayerParty matches English here), for the wild foe's IVs.
+        enemyParty = 0x0202402CL,
         bagPockets = 0x0203988CL,
         battleMons = 0x02023BE4L,
         battleTypeFlags = 0x02022B4CL,

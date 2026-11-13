@@ -102,11 +102,18 @@ fun MonDetailScreen(
     onWithdraw: (() -> Unit)? = null,
     /** Open with TRADE EVOLUTIONS' question up (screenshot tests). */
     initialEvolveAsk: Boolean = false,
+    /** The column of party Pokémon right of the summary; false (BATTLE BAND: its party list is beside it) = BACK alone. */
+    partyColumn: Boolean = true,
+    /** A controller's keys (BATTLE BAND): LEFT / RIGHT switch STATS and MOVES. */
+    keys: kotlinx.coroutines.flow.Flow<MenuKey>? = null,
 ) {
     val m = rememberGbaTextMetrics()
     val small = rememberGbaTextMetrics(1f)
     val gap = m.u * 3
     var showStats by remember { mutableStateOf(initialShowStats) }
+    if (keys != null) androidx.compose.runtime.LaunchedEffect(keys) {
+        keys.collect { k -> if ((k == MenuKey.LEFT || k == MenuKey.RIGHT) && party.getOrNull(index)?.stats != null) showStats = !showStats }
+    }
     var showLearn by remember { mutableStateOf(initialLearnPick != null) }
     // The picked CAN LEARN option, by move id (0 = none); kept while cycling through the party.
     var learnPick by remember { mutableStateOf(initialLearnPick ?: 0) }
@@ -206,7 +213,8 @@ fun MonDetailScreen(
         }
     }
     Column(Modifier.width(SummaryButtonSize).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PartyColumn(party, index, onIndexChange, small, Modifier.weight(1f).fillMaxWidth())
+        if (partyColumn) PartyColumn(party, index, onIndexChange, small, Modifier.weight(1f).fillMaxWidth())
+        else Spacer(Modifier.weight(1f))
         BackNavButton(onBack, SummaryButtonSize)
     }
     }

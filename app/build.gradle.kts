@@ -65,7 +65,8 @@ android {
     ndkVersion = "28.2.13676358"
 
     defaultConfig {
-        applicationId = "com.pokedaisy.app"
+        // Thomas's fork: its own id, so it installs beside the official PokeDaisy (another signer).
+        applicationId = "com.pokedaisy.app.thomas"
         minSdk = 26
         targetSdk = 34
         // Bump both for every GitHub release: the updater compares versionName

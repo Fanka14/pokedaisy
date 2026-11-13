@@ -1,5 +1,6 @@
 package com.pokedaisy.app.companion.ui
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -79,7 +81,7 @@ internal fun BattleMoveList(
  * HUD's GBA pixels, so it follows SIZE like the rest of the HUD.
  */
 @Composable
-private fun MoveListRow(
+internal fun MoveListRow(
     mv: MoveView?, index: Int, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, edge: Dp, modifier: Modifier,
     onPick: ((Int) -> Unit)? = null, cursor: Boolean = false,
 ) {
@@ -145,11 +147,17 @@ internal fun BattlePartyList(
     onPick: ((Int) -> Unit)? = null,
     selected: Int = -1,
     pickable: (Int) -> Boolean = { i -> party[i].let { !it.isEgg && it.hp > 0 } },
+    /** A controller's row (BATTLE BAND's [BandParty]): the party, then CANCEL at party.size; -1 = the list's own cursor. */
+    keyCursor: Int = -1,
+    /** BATTLE BAND: an INFO button left of each row opens that Pokémon's summary (party index); null = none. */
+    onSummary: ((Int) -> Unit)? = null,
+    /** The row whose summary is open: its INFO is lit. */
+    summaryOpen: Int = -1,
 ) {
     CompanionBackHandler(enabled = !busy, onBack = onBack)
     val callback = onPick != null
     val best = remember(party, foe, active) { recommendedSwitch(party, foe, active) }?.takeIf { showHints && !callback }
-    val cursor = if (callback) selected
+    val cursor = if (keyCursor >= 0) keyCursor else if (callback) selected
         else party.indexOfFirst { it == best }.takeIf { it >= 0 } ?: party.indexOfFirst { isOut(it, active) }
     val enabled = (battleInput != null || callback) && !busy
     val palette = partyPaletteFor(activeGame ?: com.pokedaisy.app.companion.data.GameKind.FIRERED)
@@ -161,20 +169,38 @@ internal fun BattlePartyList(
                 else -> null
             }
             val pick = enabled && (if (callback) pickable(i) else canSendIn(mon, active))
-            Box(
-                Modifier.focusStart(i == cursor).fillMaxWidth().height(rowH)
-                    .slotClickable(sound = callback, enabled = pick) { if (onPick != null) onPick(i) else battleInput?.switchTo(mon.personality) },
-            ) { PartyListRow(palette, mon, selected = i == cursor, u, edge, tag) }
+            Row(Modifier.fillMaxWidth().height(rowH), horizontalArrangement = Arrangement.spacedBy(u * 2), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.focusStart(i == cursor).weight(1f).fillMaxHeight()
+                        .slotClickable(sound = callback, enabled = pick) { if (onPick != null) onPick(i) else battleInput?.switchTo(mon.personality) },
+                ) { PartyListRow(palette, mon, selected = i == cursor, u, if (onSummary != null) 0.dp else edge, tag) }
+                // INFO on the right (the player's call), running off the screen's edge in the row's place.
+                if (onSummary != null) SummaryButton(rowH, u, edge, lit = i == summaryOpen) { onSummary(i) }
+            }
         }
-        ListCancel(!busy, rowH * 0.7f, edge, onBack)
+        ListCancel(!busy, rowH * 0.7f, edge, onBack, selected = keyCursor == party.size)
     }
 }
 
+/** A row's INFO (BATTLE BAND's party list): the Pokémon's summary. */
 @Composable
-private fun ListCancel(enabled: Boolean, h: Dp, edge: Dp, onClick: () -> Unit) {
+private fun SummaryButton(h: Dp, u: Dp, edge: Dp, lit: Boolean = false, onClick: () -> Unit) {
+    // Lit (the open summary's): the summary's STATS purple.
+    PlatinumButton(
+        fill = if (lit) StatsPurple else Color(0xFF6A7080), frame = if (lit) StatsPurpleDark else Color(0xFF3C4250), modifier = Modifier.width(u * SUMMARY_BUTTON_W + edge).height(h * 0.8f),
+        outline = u, contentPadding = PaddingValues(start = u * 2, top = u * 2, bottom = u * 2, end = u * 2 + edge), onClick = onClick,
+    ) { PixelArt(PixelIcons.info, mapOf('1' to Color.White), Modifier.size(u * 14)) }
+}
+
+/** [SummaryButton]'s width (GBA pixels). */
+internal const val SUMMARY_BUTTON_W = 22
+
+@Composable
+private fun ListCancel(enabled: Boolean, h: Dp, edge: Dp, onClick: () -> Unit, selected: Boolean = false) {
     val m = rememberGbaTextMetrics(1f)
     PlatinumButton(
-        fill = RunBlue, frame = RunBlueDark, modifier = Modifier.fillMaxWidth().height(h),
+        fill = RunBlue, frame = RunBlueDark,
+        modifier = Modifier.fillMaxWidth().height(h).then(if (selected) Modifier.border(m.u * 2, Color.White, PixelRoundedShape(5.dp)) else Modifier),
         enabled = enabled, pressesGame = false, outline = m.u, contentPadding = PaddingValues(end = edge), onClick = onClick,
     ) { GbaText(tr("CANCEL"), buttonContent, if (buttonContent == Color.White) Color(0xFF383838) else Color.Transparent, m, bold = gameBoldLabels()) }
 }

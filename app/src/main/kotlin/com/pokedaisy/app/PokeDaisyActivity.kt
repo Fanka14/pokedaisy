@@ -267,6 +267,8 @@ class PokeDaisyActivity : Activity() {
     /** BATTLE BUTTONS (same view as the HUD): SETTINGS' switch, BATTLE HINTS, one screen (no second one), and where the
      * GBA's own picture is (EXPAND: the battle's middle, which [hudFrame] leaves out). */
     private val battleButtonsOn = androidx.compose.runtime.mutableStateOf(true)
+    /** BATTLE BAND ([Prefs.battleBand]): a GBA battle's menu as one band across the screen instead of BATTLE BUTTONS. */
+    private val battleBandOn = androidx.compose.runtime.mutableStateOf(true)
     private val battleHints = androidx.compose.runtime.mutableStateOf(true)
     private val hudSingleScreen = androidx.compose.runtime.mutableStateOf(false)
     private val coreFrame = androidx.compose.runtime.mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
@@ -364,6 +366,14 @@ class PokeDaisyActivity : Activity() {
         }
         override fun back() { if (::engine.isInitialized) engine.battleBack() }
         override val canSwitch get() = ::engine.isInitialized && engine.battleSwitchAddrs != null
+        override val menuCursor get() = if (::engine.isInitialized) engine.battleMenuCursor else null
+        override val effects get() = if (::engine.isInitialized) engine.battleEffects else null
+        override val canUseItems get() = ::engine.isInitialized && engine.battleBagAddrs != null
+        override fun useItem(itemId: Int, pocket: Int, personality: Long?): Boolean {
+            if (!::engine.isInitialized) return false
+            closeCompanionWindow()
+            return engine.battleUseItem(itemId, pocket, personality)
+        }
         override fun switchTo(personality: Long) {
             closeCompanionWindow()
             if (::engine.isInitialized) engine.battleSwitchTo(personality)
@@ -1099,11 +1109,22 @@ class PokeDaisyActivity : Activity() {
      * FireRed rev 0, Ruby/Sapphire and hacks that share a header code (Seaglass)
      * stay out.
      */
+    /** The battle bag [BattleInputController.useItem] steers: retail FireRed / LeafGreen (pret/pokefirered's symbols, the
+     * same in both and both revisions) and French LeafGreen (its EWRAM is theirs here, gBagPockets and gPartyMenu too). */
+    private fun bagAddrsFor(game: com.pokedaisy.app.companion.data.GameKind?): BattleInputController.BagAddrs? =
+        if (game == com.pokedaisy.app.companion.data.GameKind.FIRERED && romCode in setOf("BPRE", "BPGE", "BPGF") &&
+            com.pokedaisy.app.companion.data.runningFireRedHack == null && !com.pokedaisy.app.companion.data.runningLetsGo
+        ) BattleInputController.BagAddrs(menuState = 0x0203ACFCL, itemId = 0x0203AD30L, pockets = 0x0203988CL) else null
+
     private fun switchAddrsFor(game: com.pokedaisy.app.companion.data.GameKind?): BattleInputController.SwitchAddrs? = when {
         // Yellow and the Gen 2 games: their own party menus, read through GbPartySwitch (no gPartyMenu, no personality).
         game.isGen1 || game.isGen2 ->
             telemetry.gbPartySwitch()?.let { BattleInputController.SwitchAddrs(gb = it) }
         game == com.pokedaisy.app.companion.data.GameKind.FIRERED && romCode == "BPRE" && romRev == 1 ->
+            BattleInputController.SwitchAddrs(partyMenu = 0x0203B0A0L, party = 0x02024284L)
+        // French LeafGreen: FireRed's gPartyMenu / gPlayerParty (its port config, port_bpgf0), FireRed's one-column list.
+        // Checked on a Pixel 8 Pro (2026-11-08): the band's list sent a party Pokémon in.
+        game == com.pokedaisy.app.companion.data.GameKind.FIRERED && romCode == "BPGF" ->
             BattleInputController.SwitchAddrs(partyMenu = 0x0203B0A0L, party = 0x02024284L)
         // Recharged Emerald runs as Emerald (BPEE) but is a rebuild with its own RAM: its config carries gPartyMenu (Emerald's
         // list; headless on all three builds: a written POKéMON cell, DOWN, A, SHIFT sent party slot 1 in).
@@ -1461,6 +1482,11 @@ class PokeDaisyActivity : Activity() {
         override val battleButtons get() = Prefs(this@PokeDaisyActivity).battleButtons
         override fun setBattleButtons(on: Boolean) {
             Prefs(this@PokeDaisyActivity).battleButtons = on
+            runOnUiThread { syncGameScreen() }
+        }
+        override val battleBand get() = Prefs(this@PokeDaisyActivity).battleBand
+        override fun setBattleBand(on: Boolean) {
+            Prefs(this@PokeDaisyActivity).battleBand = on
             runOnUiThread { syncGameScreen() }
         }
         override val fieldHudStyle get() = Prefs(this@PokeDaisyActivity).fieldHudStyle
@@ -2142,6 +2168,9 @@ class PokeDaisyActivity : Activity() {
                 telemetry.knownGMain()?.let { (addr, inBattleOff) -> FfMenuWatch.useKnownGMain(addr, inBattleOff) }
                 if (snap.connected) FfMenuWatch.notePosition(snap.x, snap.y, snap.mapGroup, snap.mapNum, snap.inBattle)
                 if (snap.connected) battleSwitchAddrs = switchAddrsFor(snap.game)
+                if (snap.connected) battleBagAddrs = bagAddrsFor(snap.game)
+                // The same games' lasting effects (their battle EWRAM is FireRed's).
+                if (snap.connected) battleEffectsAddrs = if (bagAddrsFor(snap.game) != null) com.pokedaisy.app.companion.data.BattleEffects.FIRERED else null
                 // SHINY ODDS: the foe party of a game it knows (retail FireRed / Emerald), handed to the engine.
                 if (snap.connected) telemetry.knownShinyTarget().let { t ->
                     if (t != shinyTarget) {
@@ -3195,6 +3224,7 @@ class PokeDaisyActivity : Activity() {
         hudStyle.value = prefs.fieldHudStyle
         quickShown.value = prefs.quickMenuActions
         battleButtonsOn.value = prefs.battleButtons
+        battleBandOn.value = prefs.battleBand
         battleHints.value = prefs.showHints
         hudUpright.value = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_PORTRAIT
         com.pokedaisy.app.companion.ui.CompanionStatusBar.shown = prefs.statusBar && prefs.statusBarOnCompanion
@@ -3566,10 +3596,6 @@ class PokeDaisyActivity : Activity() {
             val panelClosed = ::sidePanel.isInitialized && (sidePanel.closed.value || sidePanel.enabled && sidePanel.windowMode)
             // Read here, so the tab steps aside when the DS battle menu comes up (a read in the SideEffect wouldn't redraw).
             val dsMenuMode = dsBattleMenu.mode
-            androidx.compose.runtime.SideEffect {
-                // (A DS battle's menu window sits in that corner too.)
-                if (::sidePanel.isInitialized) sidePanel.tabInHud = shown && panelClosed || battlePicking.value || dsMenuMode != 0
-            }
             // BATTLE BUTTONS: one screen held sideways, a single battle the game's touch input can steer (its state read
             // at least once this battle - it reads NONE in games without it).
             var battleRead by remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -3584,6 +3610,19 @@ class PokeDaisyActivity : Activity() {
             val buttonsWanted = battleButtonsOn.value && hudSingleScreen.value && !hudUpright.value && snap.hasData && !snap.unsupported &&
                 snap.inBattle && !snap.isDoubleBattle && (!romIsNds || dsFloats.value && !dsPip.value)
             val buttons = buttonsWanted && battleRead && !dsWindowUp
+            // BATTLE BAND: Gen 3 GBA games only (a Game Boy game's menus and frame are another shape).
+            val band = battleBandOn.value && !romIsNds && engine?.gba == true
+            androidx.compose.runtime.SideEffect {
+                if (!band || !buttons) {
+                    com.pokedaisy.app.companion.ui.GameBandPixels.wanted = false
+                    com.pokedaisy.app.companion.ui.BandParty.close()
+                    com.pokedaisy.app.companion.ui.BandBag.close()
+                }
+            }
+            androidx.compose.runtime.SideEffect {
+                // (A DS battle's menu window sits in that corner too, and BATTLE BAND's RUN / BACK run to the screen's edge.)
+                if (::sidePanel.isInitialized) sidePanel.tabInHud = shown && panelClosed || battlePicking.value || dsMenuMode != 0 || band && buttons
+            }
             // Where BATTLE BUTTONS can't stand in for a DS battle's command panel, that panel floats in too.
             androidx.compose.runtime.SideEffect { engine?.dsBattleMenuFloats = dsFloats.value && !dsPip.value && !buttonsWanted }
             androidx.compose.runtime.CompositionLocalProvider(
@@ -3616,6 +3655,10 @@ class PokeDaisyActivity : Activity() {
                         dsStripShown.value = buttonsWanted && battleRead
                         dsStripActive.value = !dsWindowUp
                     }
+                } else if (band) {
+                    // BATTLE BAND: the game's menu becomes one band across the screen (its prompt box copied from the frame).
+                    androidx.compose.runtime.SideEffect { com.pokedaisy.app.companion.ui.GameBandPixels.wanted = buttons }
+                    com.pokedaisy.app.companion.ui.GbaBattleBand(snap, battleInput, coreFrame.value, buttons, battleHints.value)
                 } else com.pokedaisy.app.companion.ui.BattleButtons(
                     snap, buttons, battleInput, battleHints.value,
                     modifier = androidx.compose.ui.Modifier.graphicsLayer { alpha = hudAlpha },
@@ -3773,8 +3816,24 @@ class PokeDaisyActivity : Activity() {
             menuKeyFor(newly)?.let { CoopBattles.takeKey(it) }
             return
         }
-        input.setTouchBits(gba, turbo)
+        // BATTLE BAND's party list: the pad's A on POKéMON opens it (not the game's party screen) and, while it's open, the
+        // pad steers it; buttons it took stay away from the game until let go.
+        val band = com.pokedaisy.app.companion.ui.BandParty
+        touchBandHeld = touchBandHeld and gba
+        val key = menuKeyFor(newly)
+        val bag = com.pokedaisy.app.companion.ui.BandBag
+        if (bag.open.value) {
+            key?.let { bag.keys.tryEmit(it) }
+            touchBandHeld = touchBandHeld or gba
+        } else if (band.open.value) {
+            key?.let { bandPartyKey(it, first = true) }
+            touchBandHeld = touchBandHeld or gba
+        } else if (key != null && bandPartyOpens(key)) touchBandHeld = touchBandHeld or gba
+        input.setTouchBits(gba and touchBandHeld.inv(), turbo)
     }
+
+    /** The touch pad's buttons BATTLE BAND's party list took ([onTouchKeys]): kept from the game until let go. */
+    private var touchBandHeld = 0
 
     /** When the touch controls' FF went down: a short tap turns FF on / off, a longer press is FF while held. */
     private var touchFfDownAt = 0L
@@ -3887,6 +3946,7 @@ class PokeDaisyActivity : Activity() {
         menuKeyTakes(event)?.let { return it }
         quickMenuTakes(event)?.let { return it }
         dsBattleTakes(event)?.let { return it }
+        bandPartyTakes(event)?.let { return it }
         if (hotkeyTakes(event.keyCode, down)) return true
         if (input.onKey(event.keyCode, down)) {
             if (down && !physicalPadUsed && event.device?.isVirtual == false) {
@@ -4132,6 +4192,109 @@ class PokeDaisyActivity : Activity() {
         return true
     }
 
+    /**
+     * BATTLE BAND's party list and a controller: A on POKéMON (the game's cursor there) opens PokeDaisy's list as a tap does,
+     * not the game's party screen; while it's open the D-pad, A and B are its (and stay away from the game until let go,
+     * [menuHeld]). Null = not its business.
+     */
+    private fun bandPartyTakes(event: KeyEvent): Boolean? {
+        val band = com.pokedaisy.app.companion.ui.BandParty
+        val code = event.keyCode
+        val down = event.action == KeyEvent.ACTION_DOWN
+        val key = menuKeyFor(input.buttonFor(code) ?: 0) ?: return null
+        val bag = com.pokedaisy.app.companion.ui.BandBag
+        if (bag.open.value) {
+            if (!down) {
+                menuHeld.remove(code)
+                return true
+            }
+            if (event.repeatCount == 0) menuHeld.add(code) else if (code !in menuHeld) return true
+            if (event.repeatCount == 0 || key in BAND_REPEAT_KEYS) bag.keys.tryEmit(key)
+            return true
+        }
+        // The band's moves up: L / R show the game's cursor move's card (accuracy, effect) - kept from the game, whose
+        // L / R open its help there.
+        val moves = com.pokedaisy.app.companion.ui.BandMoves
+        if (!band.open.value && moves.available && (key == MenuKey.L || key == MenuKey.R)) {
+            if (down && event.repeatCount == 0 && ::engine.isInitialized) {
+                engine.battleMenuCursor.value.takeIf { it >= 0 }?.let { moves.toggle(it) }
+                menuHeld.add(code)
+            } else if (!down) menuHeld.remove(code)
+            return true
+        }
+        if (!band.open.value) {
+            if (!down || event.repeatCount != 0 || !bandPartyOpens(key)) return null
+            menuHeld.add(code)
+            return true
+        }
+        if (!down) {
+            menuHeld.remove(code)
+            return true
+        }
+        if (event.repeatCount == 0) menuHeld.add(code) else if (code !in menuHeld) return true
+        bandPartyKey(key, first = event.repeatCount == 0)
+        return true
+    }
+
+    /** A on POKéMON / BAG (the game's cursor there) with the band's list / bag available: open it, as a tap does. True = opened. */
+    private fun bandPartyOpens(key: MenuKey): Boolean {
+        val band = com.pokedaisy.app.companion.ui.BandParty
+        if (key != MenuKey.A || !::engine.isInitialized) return false
+        val bag = com.pokedaisy.app.companion.ui.BandBag
+        if (engine.battleMenuCursor.value == 1 && bag.available) {
+            bag.open.value = true
+            bandHat = 0
+            return true
+        }
+        if (!band.available || engine.battleMenuCursor.value != 2) return false
+        band.cursor.intValue = -1
+        band.open.value = true
+        bandHat = 0
+        return true
+    }
+
+    /** A key on the band's open party list: the D-pad moves its row, A picks it, B closes the list. */
+    private fun bandPartyKey(key: MenuKey, first: Boolean) {
+        val band = com.pokedaisy.app.companion.ui.BandParty
+        // A summary open beside the list: LEFT / RIGHT are its (STATS / MOVES), B closes it (a second B the list).
+        if (band.summary.value != null && (key == MenuKey.LEFT || key == MenuKey.RIGHT)) {
+            if (first) band.summaryKeys.tryEmit(key)
+            return
+        }
+        if (band.summary.value != null && key == MenuKey.B) {
+            if (first) band.summary.value = null
+            return
+        }
+        // None open: RIGHT (the side INFO sits on) opens the cursor row's, as INFO does.
+        if (key == MenuKey.RIGHT) {
+            if (first && band.cursor.intValue in 0 until (band.rows - 1)) band.summary.value = band.cursor.intValue
+            return
+        }
+        val rows = band.rows.coerceAtLeast(1)
+        val at = band.cursor.intValue
+        when (key) {
+            MenuKey.UP -> band.cursor.intValue = if (at <= 0) rows - 1 else at - 1
+            MenuKey.DOWN -> band.cursor.intValue = if (at < 0 || at >= rows - 1) 0 else at + 1
+            MenuKey.A -> if (first && at >= 0) band.pick?.invoke(at)
+            MenuKey.B -> if (first) band.open.value = false
+            else -> Unit
+        }
+    }
+
+    /** BATTLE BAND's party list open: a controller's D-pad hat steps it (as [bandPartyTakes] does the D-pad keys). */
+    private fun bandPartyMotion(event: MotionEvent): Boolean {
+        val bits = GbaInput.motionBits(event) ?: return false
+        val pressed = bits and bandHat.inv()
+        bandHat = bits
+        val key = menuKeyFor(pressed)
+        if (com.pokedaisy.app.companion.ui.BandBag.open.value) key?.let { com.pokedaisy.app.companion.ui.BandBag.keys.tryEmit(it) }
+        else key?.takeIf { it == MenuKey.UP || it == MenuKey.DOWN || it == MenuKey.LEFT || it == MenuKey.RIGHT }?.let { bandPartyKey(it, first = true) }
+        return true
+    }
+    private var bandHat = 0
+    /** The band's BAG: the keys a held press repeats (the D-pad), the rest only on their first press. */
+    private val BAND_REPEAT_KEYS = setOf(MenuKey.UP, MenuKey.DOWN, MenuKey.LEFT, MenuKey.RIGHT)
+
     /** The window's key for a GBA button bit (a diagonal counts as its up / down). */
     private fun menuKeyFor(bits: Int): MenuKey? = when {
         bits and MgbaCore.Key.UP != 0 -> MenuKey.UP
@@ -4254,6 +4417,7 @@ class PokeDaisyActivity : Activity() {
         if (bottomFocus.value && bottomMotion(event)) return true
         if (quickMenu.open && quickMotion(event)) return true
         if (dsBattleMenu.mode != 0 && dsBattleMotion(event)) return true
+        if ((com.pokedaisy.app.companion.ui.BandParty.open.value || com.pokedaisy.app.companion.ui.BandBag.open.value) && bandPartyMotion(event)) return true
         if (coopOverlay.takesKeys && coopMotion(event)) return true
         if (event.isFromSource(InputDevice.SOURCE_JOYSTICK)) {
             // The right stick: WIDE's look-around (WideCamera). Most pads report it as Z / RZ, some as RX / RY.

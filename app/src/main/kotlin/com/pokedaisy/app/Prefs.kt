@@ -391,6 +391,13 @@ class Prefs(context: Context) {
         get() = p.getBoolean("battle_buttons", true)
         set(v) = p.edit().putBoolean("battle_buttons", v).apply()
 
+    /** BATTLE BAND (companion.ui.GbaBattleBand): with BATTLE BUTTONS on, a GBA battle's own menu becomes one band
+     * across the screen (the game's prompt, then FIGHT / BAG / POKéMON / RUN 2 x 2, then the moves) instead of the
+     * buttons beside it. */
+    var battleBand: Boolean
+        get() = p.getBoolean("battle_band", true)
+        set(v) = p.edit().putBoolean("battle_band", v).apply()
+
     /** FIELD HUD (companion.ui.FieldHud): the party, minimap, Poké Balls, BAG and WILD buttons over the overworld. */
     var fieldHud: Boolean
         get() = p.getBoolean("field_hud", true)

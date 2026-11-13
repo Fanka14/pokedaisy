@@ -58,6 +58,14 @@ jobs:
       - name: Debug APK (Kotlin + the native mGBA / rcheevos build)
         run: ./gradlew :app:assembleDebug --stacktrace
 
+      # Thomas's fork: the APK to install, under this run's Artifacts.
+      - name: Upload the debug APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pokedaisy-thomas-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
       - name: Test reports
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

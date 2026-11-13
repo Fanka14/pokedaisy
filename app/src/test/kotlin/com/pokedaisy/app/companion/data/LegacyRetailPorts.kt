@@ -1652,6 +1652,9 @@ private val LEGACY_PORT_BPGF0 by lazy {
         language = 'F',
         gameCode = "BPGF",
         trainerCard = null,
+        actionCursor = 0x02023FF8L, // added with the TOML's (2026-11-08)
+        moveCursor = 0x02023FFCL,
+        enemyParty = 0x0202402CL, // added with the TOML's (2026-11-11)
         bagPockets = 0x0203988CL,
         battleMons = 0x02023BE4L,
         battleTypeFlags = 0x02022B4CL,

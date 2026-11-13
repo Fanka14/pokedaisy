@@ -284,6 +284,10 @@ interface CompanionSettings {
     val battleButtons: Boolean get() = true
     fun setBattleButtons(on: Boolean) {}
 
+    /** SETTINGS > BATTLE BAND: a GBA battle's menu as one band across the screen - see [Prefs.battleBand]. */
+    val battleBand: Boolean get() = true
+    fun setBattleBand(on: Boolean) {}
+
     /** The FIELD HUD's layout, look, size and parts - see [Prefs.fieldHudStyle]. */
     val fieldHudStyle: com.pokedaisy.app.companion.FieldHudStyle get() = com.pokedaisy.app.companion.FieldHudStyle()
     fun setFieldHudStyle(style: com.pokedaisy.app.companion.FieldHudStyle) {}

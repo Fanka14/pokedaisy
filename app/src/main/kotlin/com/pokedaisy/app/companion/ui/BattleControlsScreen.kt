@@ -168,14 +168,14 @@ fun BattleControlsScreen(
                 when (state) {
                     BATTLE_INPUT_MOVE_SELECT -> MoveGrid(
                         activeMon?.moves.orEmpty(), battleInput, busy, showHints,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize(), estimates = moveEstimates(activeMon, foe),
                     )
                     BATTLE_INPUT_ACTION_SELECT -> if (choosingMon) {
                         PartyPicker(party, foe, active, battleInput, busy, showHints, onBack = { choosingMon = false })
                     } else if (choosingMove) {
                         MoveGrid(
                             activeMon?.moves.orEmpty(), battleInput, busy, showHints,
-                            modifier = Modifier.fillMaxSize(), onCancel = { choosingMove = false },
+                            modifier = Modifier.fillMaxSize(), onCancel = { choosingMove = false }, estimates = moveEstimates(activeMon, foe),
                         )
                     } else {
                         ActionButtons(
@@ -387,6 +387,8 @@ internal fun MoveGrid(
     onCancel: (() -> Unit)? = null,
     /** ONE-TAP MOVES' two-line cards, names fitted (BATTLE BUTTONS' smaller window). */
     compact: Boolean = false,
+    /** Each move's damage on the foe ("18-22%"), by index. */
+    estimates: List<String?> = emptyList(),
 ) {
     CompanionBackHandler(enabled = battleInput != null && !busy) { onCancel?.invoke() ?: battleInput?.back() }
     if (gen1Buttons) return Gen1MoveList(moves, battleInput, busy, showHints, modifier, onCancel)
@@ -399,7 +401,7 @@ internal fun MoveGrid(
                 for (col in 0..1) {
                     val idx = row * 2 + col
                     // The D-pad (the companion's window) starts on the first move.
-                    MoveCard(moves.getOrNull(idx), battleInput, idx, busy, showHints, modifier = Modifier.focusStart(idx == 0).weight(1f).fillMaxHeight(), compact = compact)
+                    MoveCard(moves.getOrNull(idx), battleInput, idx, busy, showHints, modifier = Modifier.focusStart(idx == 0).weight(1f).fillMaxHeight(), compact = compact, estimate = estimates.getOrNull(idx))
                 }
             }
         }
@@ -485,6 +487,10 @@ internal fun MoveCard(
     modifier: Modifier = Modifier,
     /** Two lines (ONE-TAP MOVES, under the action buttons): the type joins the power / PP line. */
     compact: Boolean = false,
+    /** [compact]'s two lines centred in the card (BATTLE BAND's wide cards). */
+    centered: Boolean = false,
+    /** The damage it would do, as a share of the foe's HP ("18-22 %"), after the verdict; null = none. */
+    estimate: String? = null,
 ) {
     val enabled = mv != null && mv.pp > 0 && battleInput != null && !busy
     // Whole-card color keyed by move type (fill stays a constant pale card
@@ -518,11 +524,24 @@ internal fun MoveCard(
             // A short screen (the RG DS): the two lines, smaller - its cards are too short for three.
             val short = LocalShortCompanion.current
             val k = if (short) SHORT_MOVE_TEXT else 1f
-            if (compact || short) Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+            // The damage estimate on the card's right, on its own (the player's call: easier to read there).
+            if ((compact || short) && estimate != null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
+                Text(estimate, color = AppColors.text, fontSize = 30.sp * k, style = tight, maxLines = 1)
+            }
+            if (compact || short) Column(
+                modifier = Modifier.fillMaxSize().padding(end = if (estimate != null) 150.dp * k else 0.dp), verticalArrangement = Arrangement.SpaceEvenly,
+                horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start,
+            ) {
                 // Name and PP, then type, power and the multipliers.
-                Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.Bottom, modifier = if (centered) Modifier else Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (centered) Arrangement.spacedBy(16.dp * k) else Arrangement.Start,
+                ) {
                     // A long name (METAL CLAW) steps its size down to fit beside PP rather than being cut.
-                    FittedText(mv.name, AppColors.text, tight, maxSize = (32 * k).toInt(), minSize = (20 * k).toInt(), modifier = Modifier.weight(1f).padding(end = 10.dp * k))
+                    FittedText(
+                        mv.name, AppColors.text, tight, maxSize = (32 * k).toInt(), minSize = (20 * k).toInt(),
+                        modifier = if (centered) Modifier.weight(1f, fill = false) else Modifier.weight(1f).padding(end = 10.dp * k),
+                    )
                     Text(tr("PP {0}", mv.pp), color = AppColors.text, fontSize = 20.sp * k, style = tight, maxLines = 1)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp * k)) {
@@ -540,6 +559,7 @@ internal fun MoveCard(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f)) {
                         Text(tr("PWR {0}", powerLabel(mv.power)), color = AppColors.muted, fontSize = 24.sp, style = tight)
                         if (showHints) mv.vs.forEach { v -> MultiplierChip(v.label, v.pct, fontSize = 16.sp) }
+                        if (estimate != null) Text(estimate, color = AppColors.text, fontSize = 24.sp, style = tight, maxLines = 1)
                     }
                     Text(tr("PP {0}", mv.pp), color = AppColors.text, fontSize = 28.sp, style = tight)
                 }
@@ -785,8 +805,8 @@ private val ButtonOutline = Color(0xFF202020)
 private val RunDrop = 16.dp
 internal val FightRed = Color(0xFFE8483C)
 internal val FightRedDark = Color(0xFFA82820)
-private val BagOrange = Color(0xFFE0A030)
-private val BagOrangeDark = Color(0xFFA87018)
+internal val BagOrange = Color(0xFFE0A030)
+internal val BagOrangeDark = Color(0xFFA87018)
 internal val RunBlue = Color(0xFF4890D8)
 internal val RunBlueDark = Color(0xFF2860A0)
 internal val MonGreen = Color(0xFF58A840)

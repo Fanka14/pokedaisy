@@ -179,6 +179,54 @@ fun BattleButtons(
     }
 }
 
+/** POKéMON's list on its own, over the whole stage, for BATTLE BAND (its POKéMON opens this, not the game's party screen). */
+@Composable
+internal fun BattlePartyWindow(snapshot: SnapshotView, battleInput: BattleInput?, busy: Boolean, showHints: Boolean, onClose: () -> Unit) {
+    val n = snapshot.party.size.coerceAtLeast(1)
+    // A row's INFO opens the Pokémon's summary over the list; its BACK comes back to the list.
+    var summary by BandParty.summary
+    // The list's closing closes it too.
+    androidx.compose.runtime.DisposableEffect(Unit) { onDispose { BandParty.summary.value = null } }
+    // The open summary follows the list's row: a controller's UP / DOWN shows the next Pokémon's (CANCEL keeps the last).
+    // The controller's cursor starts on the row the list lights (BEST, else the one out), so RIGHT opens its summary at once.
+    LaunchedEffect(Unit) {
+        if (BandParty.cursor.intValue < 0) {
+            val active = snapshot.battlePlayer
+            val best = if (showHints) recommendedSwitch(snapshot.party, snapshot.battleOpponent.getOrNull(0), active) else null
+            BandParty.cursor.intValue = snapshot.party.indexOfFirst { it == best }.takeIf { it >= 0 }
+                ?: snapshot.party.indexOfFirst { isOut(it, active) }.takeIf { it >= 0 } ?: 0
+        }
+    }
+    val row = BandParty.cursor.intValue
+    LaunchedEffect(row) { if (summary != null && row in snapshot.party.indices) summary = row }
+    // On a light panel of its own, the game's window cream (the player's call: the game behind made the rows hard to read).
+    val listH = n * PARTY_ROW + n * PARTY_GAP + PARTY_ROW * 0.7f
+    val listW = PARTY_LIST_W + SUMMARY_BUTTON_W + 2
+    // The summary opens left of the list, beside it (the player's call), without its own column of Pokémon: the list is it.
+    val side: (@Composable () -> Unit)? = summary?.let { i ->
+        { BattleSummarySide(snapshot, i, { summary = it; BandParty.cursor.intValue = it }) { summary = null } }
+    }
+    BattleList(1f, summary == null, 2.dp, onClose, listW + PANEL_PAD, listH + 2 * PANEL_PAD_V, dimCloses = false, side = side) { u2 ->
+        Box(
+            Modifier.background(Color(0xF0F8F8F0), PixelRoundedShape(u2 * 4))
+                .padding(start = u2 * PANEL_PAD, top = u2 * PANEL_PAD_V, bottom = u2 * PANEL_PAD_V),
+        ) {
+            BattlePartyList(
+                snapshot.party, snapshot.battleOpponent.getOrNull(0), snapshot.battlePlayer, battleInput, busy, showHints,
+                u2 * listW, u2 * PARTY_ROW, u2 * PARTY_GAP, u2, u2 * EDGE, onBack = onClose, keyCursor = BandParty.cursor.intValue,
+                // INFO again on the open one closes it.
+                onSummary = { if (summary == it) summary = null else { summary = it; BandParty.cursor.intValue = it } },
+                summaryOpen = summary ?: -1,
+            )
+        }
+    }
+}
+
+/** BATTLE BAND's party panel's margin left of the list and above / under it (GBA pixels): the height is the screen's, so
+ * the list keeps its size (its pixels round to whole screen pixels, and more margin there cut CANCEL off). */
+private const val PANEL_PAD = 9
+private const val PANEL_PAD_V = 4
+
 /** How far (GBA pixels) the buttons and the lists' rows run past the screen's right edge: their right border, corners and
  * bevel band out of sight. */
 private const val EDGE = 13
@@ -236,29 +284,44 @@ private val ButtonShadow = Color(0xFF383838)
  * (the dim fades with it); [open]: it's the one open (taps and BACK reach it only then, not while it slides out).
  */
 @Composable
-private fun BattleList(shown: Float, open: Boolean, top: Dp, onClose: () -> Unit, listW: Int, listH: Float, content: @Composable (u: Dp) -> Unit) {
+private fun BattleList(
+    shown: Float, open: Boolean, top: Dp, onClose: () -> Unit, listW: Int, listH: Float,
+    /** A tap on the dim closes the list; false (BATTLE BAND): taps there reach the touch pad under it, whose D-pad steers the list. */
+    dimCloses: Boolean = true,
+    /** Drawn left of the list in the room it leaves, at the screen's own density (BATTLE BAND: a Pokémon's summary). */
+    side: (@Composable () -> Unit)? = null,
+    content: @Composable (u: Dp) -> Unit,
+) {
     val base = LocalDensity.current
     if (open) CompanionBackHandler(onBack = onClose)
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Color(0x66000000).copy(alpha = 0.4f * shown))
             .then(
-                if (open) Modifier.soundClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose)
+                if (open && dimCloses) Modifier.soundClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClose)
                 else Modifier,
             ),
     ) {
         val topPx = with(base) { top.toPx() }
         val hPx = with(base) { maxHeight.toPx() } - topPx - with(base) { 6.dp.toPx() }
         val wPx = with(base) { maxWidth.toPx() } * 0.55f
-        val k = floor(minOf(hPx / listH, wPx / listW)).toInt().coerceAtLeast(1)
+        // BATTLE BAND's list ([dimCloses] false) takes the whole height, its pixels not whole (the player's call: easier
+        // to read); BATTLE BUTTONS' keeps whole GBA pixels.
+        val fit = minOf(hPx / listH, wPx / listW)
+        val k = if (dimCloses) floor(fit).coerceAtLeast(1f) else fit.coerceAtLeast(1f)
         val scaled = remember(k, base.fontScale) { Density(k * 16f / 20f, base.fontScale) }
         // A tap on the list's empty parts does nothing (the dim around it closes it).
         val keep = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, enabled = open, onClick = {})
         CompositionLocalProvider(LocalDensity provides scaled) {
             val u = rememberGbaTextMetrics(1f).u
-            Box(
-                Modifier.align(Alignment.TopEnd).padding(top = with(scaled) { topPx.toDp() })
-                    .offset(x = u * EDGE).graphicsLayer { translationX = (1f - shown) * size.width }.then(keep),
-            ) { content(u) }
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxHeight()) {
+                    if (side != null) CompositionLocalProvider(LocalDensity provides base) { side() }
+                }
+                Box(
+                    Modifier.padding(top = with(scaled) { topPx.toDp() })
+                        .offset(x = u * EDGE).graphicsLayer { translationX = (1f - shown) * size.width }.then(keep),
+                ) { content(u) }
+            }
         }
     }
 }
@@ -294,10 +357,10 @@ internal fun FittedGbaText(text: String, color: Color, shadow: Color, m: GbaText
 
 // ---- Pixel art ----------------------------------------------------------------------------------
 
-private val POKE_BALL = mapOf('K' to Color(0xFF202020), 'R' to Color(0xFFE83028), 'W' to Color.White, 'H' to Color(0xFFF8A8A0))
+internal val POKE_BALL = mapOf('K' to Color(0xFF202020), 'R' to Color(0xFFE83028), 'W' to Color.White, 'H' to Color(0xFFF8A8A0))
 
 /** A running figure: K outline, B its body. */
-private val RUN_ICON = listOf(
+internal val RUN_ICON = listOf(
     "........KKK.....",
     ".......KBBBK....",
     ".......KBBBK....",
@@ -315,4 +378,4 @@ private val RUN_ICON = listOf(
     "...KK.......KK..",
     "................",
 )
-private val RUN_COLORS = mapOf('K' to Color(0xFF1C2A44), 'B' to Color.White)
+internal val RUN_COLORS = mapOf('K' to Color(0xFF1C2A44), 'B' to Color.White)

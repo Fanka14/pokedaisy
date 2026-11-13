@@ -16,7 +16,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -283,7 +287,7 @@ private fun hudItemSize(m: GbaTextMetrics): Dp = with(LocalDensity.current) { (2
  * picture, over the same room.
  */
 @Composable
-private fun HudItemIcon(asset: String?, size: Dp, modifier: Modifier = Modifier) {
+internal fun HudItemIcon(asset: String?, size: Dp, modifier: Modifier = Modifier) {
     if (!activeGame.isDsGame) {
         ItemIcon(asset, size, modifier)
         return
@@ -1275,6 +1279,9 @@ private fun panelPlace(dock: Boolean, top: Boolean, u: Dp, inset: PaddingValues)
 @Composable
 private fun HudBagPanel(
     snapshot: SnapshotView, m: GbaTextMetrics, itemUse: ItemUse?, dock: Boolean, top: Boolean, inset: PaddingValues, startPocket: Int, onClose: () -> Unit,
+    /** A controller's keys (BATTLE BAND's [BandBag]): the D-pad picks the item, L / R the pocket, A is USE (then the
+     * D-pad and A pick the Pokémon), B goes back. */
+    keys: kotlinx.coroutines.flow.Flow<MenuKey>? = null,
 ) {
     val u = m.u
     val small = rememberGbaTextMetrics(0.75f)
@@ -1284,12 +1291,94 @@ private fun HudBagPanel(
     val items = snapshot.items.filter { basePocket(it.pocket) == pocket }
     // The bag as a whole, so every pocket looks the same: no item has a picture.
     val noItemPictures = snapshot.items.all { it.iconAsset == null }
-    var pickedId by remember(pocket) { mutableStateOf(items.firstOrNull()?.itemId) }
+    // Not keyed on the pocket / item: a controller's keys are read by one long-lived coroutine, which a re-keyed state
+    // left writing to the old one (its cursor lost after L / R). A pocket change picks its first item where it happens.
+    var pickedId by remember { mutableStateOf(items.firstOrNull()?.itemId) }
     val picked = items.firstOrNull { it.itemId == pickedId }
     // What the last USE did, for the item it was done with; the party pick a USE on a Pokémon opened.
     var message by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    var targets by remember(pickedId) { mutableStateOf<List<PartyTarget>?>(null) }
+    var targets by remember { mutableStateOf<List<PartyTarget>?>(null) }
+    LaunchedEffect(pickedId) { targets = null }
+    // The controller's Pokémon among [targets] (-1: none yet, as after a tap).
+    var targetCursor by remember { mutableStateOf(-1) }
+    LaunchedEffect(targets) { targetCursor = targets?.indexOfFirst { it.verdict == SlotVerdict.OK } ?: -1 }
     val (align, place) = panelPlace(dock, top, u, inset)
+    val use = picked?.let { item -> itemUse?.takeIf { it.canUse(item.itemId) && !it.picksMove(item.itemId) } }
+    // USE, from its button or a controller's A.
+    val doUse: () -> Unit = {
+        val item = picked
+        if (item != null && use != null) {
+            if (use.picksMon(item.itemId)) {
+                use.targets(item.itemId, give = false) { t ->
+                    if (t.result == ItemUseResult.USED) targets = t.targets
+                    else message = item.itemId to itemUseMessage(ItemUseOutcome(t.result))
+                }
+            } else use.use(item.itemId) { o -> message = item.itemId to itemUseMessage(o) }
+        }
+    }
+    val useOnTarget: (PartyTarget) -> Unit = { target ->
+        val item = picked
+        val mon = snapshot.party.getOrNull(target.slot)
+        if (item != null && mon != null && target.verdict == SlotVerdict.OK) {
+            targets = null
+            use?.useOn(item.itemId, target, 0) { o ->
+                message = item.itemId to itemUseMessage(o, mon = mon.name, item = bagItemName(item.itemId))
+            }
+        }
+    }
+    val current by androidx.compose.runtime.rememberUpdatedState(Triple(items, doUse, useOnTarget))
+    val allItems by androidx.compose.runtime.rememberUpdatedState(snapshot.items)
+    // The picked item kept in view as a controller walks the pocket (two and a half rows show): the list scrolled to its row.
+    val listScroll = rememberScrollState()
+    val density = LocalDensity.current
+    LaunchedEffect(pickedId, pocket) {
+        if (keys == null) return@LaunchedEffect
+        val at = items.indexOfFirst { it.itemId == pickedId }
+        if (at < 0) return@LaunchedEffect
+        with(density) {
+            val rowPx = if (noItemPictures) (m.lineHeight + u * 7).toPx() else (u * 48).toPx()
+            val viewPx = (u * (46 * 2 + 2 * 2 + 23)).toPx()
+            val top = (at / (if (noItemPictures) 1 else 6)) * rowPx
+            when {
+                top < listScroll.value -> listScroll.animateScrollTo(top.toInt())
+                top + rowPx > listScroll.value + viewPx -> listScroll.animateScrollTo((top + rowPx - viewPx).toInt())
+            }
+        }
+    }
+    if (keys != null) LaunchedEffect(keys) {
+        keys.collect { k ->
+            val (list, useNow, useOn) = current
+            val t = targets
+            if (t != null) when (k) {
+                MenuKey.LEFT, MenuKey.UP -> targetCursor = if (targetCursor <= 0) t.lastIndex else targetCursor - 1
+                MenuKey.RIGHT, MenuKey.DOWN -> targetCursor = if (targetCursor >= t.lastIndex) 0 else targetCursor + 1
+                MenuKey.A -> t.getOrNull(targetCursor)?.let(useOn)
+                MenuKey.B -> targets = null
+                else -> Unit
+            } else {
+                val at = list.indexOfFirst { it.itemId == pickedId }.coerceAtLeast(0)
+                val step = if (noItemPictures) 1 else 6
+                when (k) {
+                    MenuKey.LEFT -> list.getOrNull((at - 1).coerceAtLeast(0))?.let { pickedId = it.itemId }
+                    MenuKey.RIGHT -> list.getOrNull((at + 1).coerceAtMost(list.lastIndex))?.let { pickedId = it.itemId }
+                    MenuKey.UP -> list.getOrNull((at - step).coerceAtLeast(0))?.let { pickedId = it.itemId }
+                    MenuKey.DOWN -> list.getOrNull((at + step).coerceAtMost(list.lastIndex))?.let { pickedId = it.itemId }
+                    MenuKey.L, MenuKey.R -> {
+                        val i = pockets.indexOf(pocket)
+                        if (pockets.isNotEmpty()) {
+                            val next = pockets[(i + if (k == MenuKey.R) 1 else pockets.size - 1) % pockets.size]
+                            pocket = next
+                            // The new pocket's first item picked at once, so the controller keeps a cursor there.
+                            pickedId = allItems.firstOrNull { basePocket(it.pocket) == next }?.itemId
+                        }
+                    }
+                    MenuKey.A -> useNow()
+                    MenuKey.B -> onClose()
+                    else -> Unit
+                }
+            }
+        }
+    }
     val c = ink
     HudPanelScrim(onClose, align) { window ->
         Column(place.width(u * 300).hudPanel(u).then(window).padding(u * 7), verticalArrangement = Arrangement.spacedBy(u * 4)) {
@@ -1299,7 +1388,10 @@ private fun HudBagPanel(
                     val on = pk == pocket
                     Box(
                         Modifier.background(if (on) c.accent else Color.Transparent, PixelRoundedShape(u * 2))
-                            .soundClickable { pocket = pk }
+                            .soundClickable {
+                                pocket = pk
+                                pickedId = snapshot.items.firstOrNull { basePocket(it.pocket) == pk }?.itemId
+                            }
                             .padding(horizontal = u * 4, vertical = u * 2),
                     ) { GbaText(pocketLabel(pk), if (on) c.onAccent else c.text, if (on) Color.Transparent else c.shadow, small) }
                 }
@@ -1311,10 +1403,11 @@ private fun HudBagPanel(
             if (noItemPictures) {
                 // A game with no item pictures (the Game Boy games): the pocket as a list, as their own PACK shows it -
                 // each item's name and count, the picked one's row lit.
-                Column(Modifier.height(listHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(u)) {
+                Column(Modifier.height(listHeight).verticalScroll(listScroll), verticalArrangement = Arrangement.spacedBy(u)) {
                     items.forEach { item ->
                         Row(
                             Modifier.fillMaxWidth()
+                                .then(if (keys != null && item.itemId == pickedId) Modifier.border(u, Color.White, PixelRoundedShape(u * 3)) else Modifier)
                                 .background(if (item.itemId == pickedId) c.cellOn else c.cell, PixelRoundedShape(u * 3))
                                 .soundClickable { pickedId = item.itemId }
                                 .padding(horizontal = u * 5, vertical = u * 3),
@@ -1327,12 +1420,13 @@ private fun HudBagPanel(
                         }
                     }
                 }
-            } else Column(Modifier.height(listHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(u * 2)) {
+            } else Column(Modifier.height(listHeight).verticalScroll(listScroll), verticalArrangement = Arrangement.spacedBy(u * 2)) {
                 items.chunked(6).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(u * 2)) {
                         row.forEach { item ->
                             Box(
                                 Modifier.size(u * 46)
+                                    .then(if (keys != null && item.itemId == pickedId) Modifier.border(u, Color.White, PixelRoundedShape(u * 3)) else Modifier)
                                     .background(if (item.itemId == pickedId) c.cellOn else c.cell, PixelRoundedShape(u * 3))
                                     .soundClickable { pickedId = item.itemId },
                             ) {
@@ -1347,20 +1441,12 @@ private fun HudBagPanel(
             }
             // The same height whatever the pocket or the item: the name and USE, then two lines for its text, a
             // USE's result or the party pick.
-            val use = picked?.let { item -> itemUse?.takeIf { it.canUse(item.itemId) && !it.picksMove(item.itemId) } }
             val iconSlot = hudIconSize(m)
             Column(Modifier.fillMaxWidth().background(c.cell, PixelRoundedShape(u * 3)).padding(u * 4), verticalArrangement = Arrangement.spacedBy(u * 2)) {
                 Row(Modifier.fillMaxWidth().height(maxOf(m.rowHeight, m.lineHeight + u * 8)), verticalAlignment = Alignment.CenterVertically) {
                     picked?.let { item ->
                         GbaText(bagItemName(item.itemId), c.accent, c.accentShadow, m, Modifier.weight(1f))
-                        if (use != null) OptionButton(tk("USE"), m, onClick = {
-                            if (use.picksMon(item.itemId)) {
-                                use.targets(item.itemId, give = false) { t ->
-                                    if (t.result == ItemUseResult.USED) targets = t.targets
-                                    else message = item.itemId to itemUseMessage(ItemUseOutcome(t.result))
-                                }
-                            } else use.use(item.itemId) { o -> message = item.itemId to itemUseMessage(o) }
-                        })
+                        if (use != null) OptionButton(tk("USE"), m, onClick = doUse)
                     }
                 }
                 Box(Modifier.fillMaxWidth().height(maxOf(small.lineHeight * 2, small.lineHeight + u * 2 + iconSlot))) {
@@ -1371,16 +1457,13 @@ private fun HudBagPanel(
                         t != null -> Column(verticalArrangement = Arrangement.spacedBy(u * 2)) {
                             GbaText(tr("Use on which POKéMON?"), c.text, c.shadow, small)
                             Row(horizontalArrangement = Arrangement.spacedBy(u * 3)) {
-                                t.forEach { target ->
-                                    val mon = snapshot.party.getOrNull(target.slot) ?: return@forEach
+                                t.forEachIndexed { i, target ->
+                                    val mon = snapshot.party.getOrNull(target.slot) ?: return@forEachIndexed
                                     val ok = target.verdict == SlotVerdict.OK
                                     Box(
-                                        Modifier.alpha(if (ok) 1f else 0.35f).soundClickable(enabled = ok) {
-                                            targets = null
-                                            use?.useOn(item.itemId, target, 0) { o ->
-                                                message = item.itemId to itemUseMessage(o, mon = mon.name, item = bagItemName(item.itemId))
-                                            }
-                                        },
+                                        Modifier.alpha(if (ok) 1f else 0.35f)
+                                            .then(if (keys != null && i == targetCursor) Modifier.background(c.cellOn, PixelRoundedShape(u * 3)) else Modifier)
+                                            .soundClickable(enabled = ok) { useOnTarget(target) },
                                     ) { HudMonIcon(mon, iconSlot, u) }
                                 }
                             }
@@ -1393,6 +1476,33 @@ private fun HudBagPanel(
                     }
                 }
             }
+        }
+    }
+}
+
+/** The HUD's BAG over a battle, for BATTLE BAND's BAG: [itemUse] uses the items through the game's battle bag. */
+@Composable
+internal fun BattleBagPanel(snapshot: SnapshotView, itemUse: ItemUse, onClose: () -> Unit) {
+    val m = rememberGbaTextMetrics(1f)
+    HudBagPanel(snapshot, m, itemUse, dock = false, top = true, inset = PaddingValues(), startPocket = POCKET_ITEMS, onClose = onClose, keys = BandBag.keys)
+}
+
+/** A Pokémon's summary beside BATTLE BAND's party list (its INFO buttons): in the windows' look, without its own column of
+ * Pokémon (the list beside it is that), filling the room it's given. */
+@Composable
+internal fun BattleSummarySide(snapshot: SnapshotView, index: Int, onIndex: (Int) -> Unit, onClose: () -> Unit) {
+    val u = rememberGbaTextMetrics(1f).u
+    // Taps on it stay its own (the game's touch pad is under the band's view).
+    val keep = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+    // Clear of the screen's camera hole held sideways (the display cutout, left on a Pixel), the player's call.
+    val cutout = androidx.compose.foundation.layout.WindowInsets.displayCutout
+        .only(androidx.compose.foundation.layout.WindowInsetsSides.Start)
+    Box(Modifier.fillMaxSize().windowInsetsPadding(cutout).padding(u * 4).then(keep)) {
+        CompositionLocalProvider(LocalOptionLook provides HudWindowLook) {
+            MonDetailScreen(
+                snapshot.party, index.coerceIn(0, (snapshot.party.size - 1).coerceAtLeast(0)),
+                onIndexChange = onIndex, onBack = onClose, partyColumn = false, keys = BandParty.summaryKeys,
+            )
         }
     }
 }
@@ -1451,7 +1561,7 @@ private fun pocketLabel(pocket: Int) = when (pocket) {
 private val CAUGHT_BALL = mapOf('K' to Color(0xFF202020), 'R' to Color(0xFFE83028), 'W' to Color.White, 'H' to Color(0xFFF8A8A0))
 
 /** A satchel: K outline, B leather, L its light edge, Y the buckle. */
-private val BAG_ICON = listOf(
+internal val BAG_ICON = listOf(
     ".....KKKKKK.....",
     "....KK....KK....",
     "....K......K....",
@@ -1469,7 +1579,7 @@ private val BAG_ICON = listOf(
     "..KKKKKKKKKKKK..",
     "................",
 )
-private val BAG_COLORS = mapOf('K' to Color(0xFF3A2414), 'B' to Color(0xFFC0783A), 'L' to Color(0xFFE8A868), 'Y' to Color(0xFFF8D030))
+internal val BAG_COLORS = mapOf('K' to Color(0xFF3A2414), 'B' to Color(0xFFC0783A), 'L' to Color(0xFFE8A868), 'Y' to Color(0xFFF8D030))
 
 /** A region map: K frame, G land, B water, Y a road, R a pin with a W glint. */
 private val MAP_ICON = listOf(

@@ -1546,6 +1546,20 @@ object PokedexSource {
      * [species]' base stats in the struct's order (HP, ATTACK, DEFENSE, SPEED, SP. ATK, SP. DEF) from the ROM's
      * gBaseStats - the BOXES tab's stats, which a box record doesn't keep. Null = no table / unreadable.
      */
+    /**
+     * The EVs a defeated [species] gives, in the struct's order (HP, ATTACK, DEFENSE, SPEED, SP. ATK, SP. DEF): gBaseStats'
+     * u16 of 2-bit fields at +0x0A. Byte-stat tables only (the original games' layout); null otherwise.
+     */
+    fun evYield(t: PokedexTables, species: Int): IntArray? {
+        if (species <= 0 || t.speciesInfo == 0L || t.cartDex || t.expansion != null || t.baseStats.statsU16) return null
+        sync(t)
+        return runCatching {
+            val info = rd(t.speciesInfo + species.toLong() * t.baseStats.stride, 12)
+            val bits = u16le(info, 10)
+            IntArray(6) { (bits shr (it * 2)) and 3 }
+        }.getOrNull()
+    }
+
     fun baseStats(t: PokedexTables, species: Int): IntArray? {
         if (species <= 0 || t.speciesInfo == 0L || t.cartDex) return null
         sync(t)

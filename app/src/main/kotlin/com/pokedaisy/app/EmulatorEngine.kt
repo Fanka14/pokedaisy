@@ -294,6 +294,15 @@ class EmulatorEngine(
         get() = battleInput.cursorAddrs
         set(v) { battleInput.cursorAddrs = v }
 
+    /** The game's cursor on the battle menu that waits ([BattleInputController.menuCursor]). */
+    val battleMenuCursor: kotlinx.coroutines.flow.StateFlow<Int> get() = battleInput.menuCursor
+
+    /** The battle's lasting effects ([BattleInputController.effects]) and where they're read. */
+    val battleEffects: kotlinx.coroutines.flow.StateFlow<com.pokedaisy.app.companion.data.BattleEffects?> get() = battleInput.effects
+    var battleEffectsAddrs: com.pokedaisy.app.companion.data.BattleEffects.Addrs?
+        get() = battleInput.effectsAddrs
+        set(v) { battleInput.effectsAddrs = v }
+
     /** A fresh read of the battle input state, for RUN's follow-up (see [BattleInputController.stateNow]). */
     var battleStateNow: (() -> Int?)?
         get() = battleInput.stateNow
@@ -303,6 +312,14 @@ class EmulatorEngine(
     var battleRunAsksFirst: Boolean
         get() = battleInput.runAsksFirst
         set(v) { battleInput.runAsksFirst = v }
+
+    /** Where [battleUseItem] finds the battle bag; null = not supported for this game. */
+    var battleBagAddrs: BattleInputController.BagAddrs?
+        get() = battleInput.bagAddrs
+        set(v) { battleInput.bagAddrs = v }
+
+    /** Uses a bag item in the battle ([BattleInputController.useItem]). */
+    fun battleUseItem(itemId: Int, pocket: Int, personality: Long?): Boolean = battleInput.useItem(itemId, pocket, personality)
 
     /** Switch to the party mon with this personality. Call from the UI thread. */
     fun battleSwitchTo(personality: Long) = battleInput.switchTo(personality)
@@ -857,6 +874,7 @@ class EmulatorEngine(
         vw = MgbaCore.pkVideoWidth()
         vh = MgbaCore.pkVideoHeight()
         videoBuf = MgbaCore.pkVideoBuffer()
+        com.pokedaisy.app.companion.ui.GameBandPixels.clear()
         // The core starts with no follower and no tint (pk_wide_extras_reset): so do what this engine last sent.
         followerSent = null
         followerShown = false
@@ -1119,6 +1137,8 @@ class EmulatorEngine(
                 }
                 MgbaCore.pkRunFrame()
                 onFrame?.invoke()
+                // BATTLE BAND: the game's prompt box, copied between frames while the band is up.
+                if (gba && !nds) com.pokedaisy.app.companion.ui.GameBandPixels.capture(videoBuf, vw, vh)
                 coop?.afterFrame()
                 framesRun++
                 ticksSinceFrame = 0
